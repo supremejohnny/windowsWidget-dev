@@ -19,15 +19,15 @@ class RopePhysics {
   public void ShiftAnchor(float dx,float dy) {
     // The overlay moves with the target. Rebase free particles into its new coordinates.
     for(int i=1;i<=Segments;i++) {
-      float factor=.82f;
+      float factor=.48f;
       float verticalFactor=dy<0?.22f:.4f;
       point[i].X-=dx*factor;point[i].Y-=dy*verticalFactor;
       previous[i].X-=dx*factor;previous[i].Y-=dy*verticalFactor;
     }
   }
   public void Poke(float horizontal) {
-    previous[Segments].X-=horizontal*.28f;
-    previous[Segments].Y-=.7f;
+    previous[Segments].X-=horizontal*.2f;
+    previous[Segments].Y-=.4f;
   }
   public void Step(float dt,float anchorX,float anchorY) {
     accumulator+=Math.Max(0,Math.Min(.05f,dt));
@@ -39,7 +39,7 @@ class RopePhysics {
   }
   void Integrate(float anchorX,float anchorY) {
     for(int i=1;i<=Segments;i++) {
-      float vx=Math.Max(-4,Math.Min(4,(point[i].X-previous[i].X)*.973f));
+      float vx=Math.Max(-3,Math.Min(3,(point[i].X-previous[i].X)*.94f));
       float vy=Math.Max(-1.2f,Math.Min(3,(point[i].Y-previous[i].Y)*.91f));
       previous[i]=point[i];
       point[i].X+=vx;

@@ -22,9 +22,17 @@ class RopePhysicsSmoke {
       Check(Math.Abs(Math.Sqrt(dx*dx+dy*dy)-120.0/RopePhysics.Segments)<.5,"segment length");
     }
     float oldX=rope.End.X;
-    rope.Poke(11);rope.Step(1f/60,260,52);
-    Check(Math.Abs(rope.End.X-oldX)>1,"poke response");
+    rope.Poke(7);rope.Step(1f/60,260,52);
+    Check(Math.Abs(rope.End.X-oldX)>.2,"gentle poke response");
     foreach(int length in new[]{55,85,130,190}) {
+      var dragged=new RopePhysics(length,260,52);
+      float peak=0;
+      for(int frame=0;frame<240;frame++) {
+        if(frame<10)dragged.ShiftAnchor(6,0);
+        dragged.Step(1f/60,260,52);
+        peak=Math.Max(peak,Math.Abs(dragged.End.X-260));
+      }
+      Check(peak<32,"controlled swing amplitude for "+length+"px rope");
       var lifted=new RopePhysics(length,260,52);
       float highest=52+length;
       for(int frame=0;frame<180;frame++) {

@@ -137,7 +137,7 @@ class PetForm : Form {
     StartPosition=FormStartPosition.Manual;ClientSize=new Size(520,420);
     surface=new LayeredSurface(520,420);
     timer.Interval=16;timer.Tick+=Tick;
-    hit=new HitForm(86,81,()=>{rope.Poke(center.X<=AX?11:-11);poke=.55;timer.Interval=16;});
+    hit=new HitForm(86,81,()=>{rope.Poke(center.X<=AX?7:-7);poke=.42;timer.Interval=16;});
     anchorHit=new HitForm(20,20,ToggleStowed);
     // Position and initialize the pet before the first native window is shown.
     UpdateTarget();
