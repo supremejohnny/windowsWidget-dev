@@ -1,5 +1,7 @@
 # Window Pet
 
+Private development repository: [supremejohnny/windowsWidget-dev](https://github.com/supremejohnny/windowsWidget-dev). Public binary releases: [supremejohnny/windowWidget](https://github.com/supremejohnny/windowWidget). Source and development history must remain private; public release files are managed separately in `dist/public-repo/`. See [publishing boundaries](docs/PUBLISHING.md).
+
 **0.0.1** — Windows binary release. Original source remains local. See [architecture](docs/ARCHITECTURE.md), [Windows/macOS compatibility and resource study](docs/COMPATIBILITY.md), and [release notes](docs/RELEASE_0.0.1.md).
 
 A small Windows overlay pet attached to a selected corner of a window. Move the target window to swing the pet; click the pet to poke it. Click the single fixed anchor to tuck the pet away, leaving an 18 px static rope stub. Click again to bring the pet back.
