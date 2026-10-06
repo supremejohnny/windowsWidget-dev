@@ -5,11 +5,19 @@ using System.Windows.Forms;
 
 class OverlaySmoke {
   static void Check(bool value,string message) { if(!value)throw new Exception(message); }
+  static IntPtr VisibleAbove(IntPtr h) {
+    for(int i=0;i<30;i++) { h=Win.GetWindow(h,3);if(h==IntPtr.Zero||Win.IsWindowVisible(h))return h; }
+    return IntPtr.Zero;
+  }
   static void Pump(int milliseconds) {
     int until=Environment.TickCount+milliseconds;
     while(Environment.TickCount<until) { Application.DoEvents();Thread.Sleep(10); }
   }
   [STAThread] static void Main() {
+    try { Run(); }
+    catch(Exception e) { Console.Error.WriteLine(e.GetType().Name+": "+e.Message);Console.Error.WriteLine(e.StackTrace);Environment.Exit(1); }
+  }
+  static void Run() {
     Win.SetProcessDPIAware();
     using(var target=new Form()) using(var other=new Form()) {
       target.Text="Window Pet smoke target";target.StartPosition=FormStartPosition.Manual;
@@ -20,15 +28,23 @@ class OverlaySmoke {
       Check(pet.Left==r.Left+36-260 && pet.Top==r.Top+4-52,"position before Show");
       pet.Show();Win.SetForegroundWindow(target.Handle);Pump(150);
       Check(pet.Visible,"visible with target foreground");
-      Check(Win.GetWindow(target.Handle,3)==pet.Handle,"pet immediately above target");
+      Check(VisibleAbove(target.Handle)==pet.Handle,"visual above target");
+      Check(VisibleAbove(pet.Handle)==pet.HitHandle,"hit region above visual");
+      var blank=new Point(target.Left+120,target.Top+100);
+      Check((Win.GetWindowLong(pet.Handle,-20)&0x20)!=0,"visual layer must be click-through");
+      Check(Win.WindowFromPoint(blank)!=pet.Handle && Win.WindowFromPoint(blank)!=pet.HitHandle,
+        "blank overlay must not capture clicks");
+      Check(pet.HitRegion.IsVisible(43,39),"pet body hit region");
+      Check(!pet.HitRegion.IsVisible(0,0),"outside pet hit region");
       target.Location=new Point(540,340);Pump(100);
       Win.GetWindowRect(target.Handle,out r);
       Check(pet.Left==r.Left+36-260 && pet.Top==r.Top+4-52,"tracks x and y");
       other.Text="Window Pet smoke occluder";other.StartPosition=FormStartPosition.Manual;
       other.Location=new Point(600,350);other.Show();Win.SetForegroundWindow(other.Handle);Pump(150);
       Check(pet.Visible,"pet remains attached while another window is foreground");
-      Check(Win.GetWindow(target.Handle,3)==pet.Handle,"pet immediately above target after occlusion");
-      Check(Win.GetWindow(pet.Handle,3)==other.Handle,"other window remains above pet");
+      Check(VisibleAbove(target.Handle)==pet.Handle,"visual above target after occlusion");
+      Check(VisibleAbove(pet.Handle)==pet.HitHandle,"hit region above visual after occlusion");
+      Check(VisibleAbove(pet.HitHandle)==other.Handle,"other window remains above pet");
       pet.Close();
     }
     Console.WriteLine("Overlay smoke test passed");

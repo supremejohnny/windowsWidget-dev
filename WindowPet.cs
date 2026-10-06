@@ -21,6 +21,8 @@ static class Win {
   [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
   [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr h,IntPtr after,int x,int y,int width,int height,uint flags);
   [DllImport("user32.dll")] public static extern IntPtr GetWindow(IntPtr h,uint command);
+  [DllImport("user32.dll")] public static extern IntPtr WindowFromPoint(Point point);
+  [DllImport("user32.dll",EntryPoint="GetWindowLongW")] public static extern int GetWindowLong(IntPtr h,int index);
 }
 class Choice {
   public IntPtr Handle; public string Name;
@@ -99,6 +101,7 @@ class PetForm : Form {
   IntPtr target; int pet,length;
   Timer timer=new Timer();
   RopePhysics rope;
+  HitForm hit;
   double lastX=double.NaN,lastY=double.NaN,poke;
   DateTime lastTick=DateTime.UtcNow;
   PointF center;
@@ -111,24 +114,24 @@ class PetForm : Form {
     StartPosition=FormStartPosition.Manual;ClientSize=new Size(520,420);
     BackColor=key;TransparencyKey=key;DoubleBuffered=true;
     timer.Interval=16;timer.Tick+=Tick;
-    MouseDown+=(s,e)=>{
-      if(e.Button==MouseButtons.Left&&HitPet(e.Location))
-        {rope.Poke(center.X<=AX?20:-20);poke=1;timer.Interval=16;}
-    };
+    hit=new HitForm(()=>{rope.Poke(center.X<=AX?20:-20);poke=1;timer.Interval=16;});
     // Position and initialize the pet before the first native window is shown.
     UpdateTarget();
     center=new PointF(AX,AY+length+29);
-    Shown+=(s,e)=>{KeepAboveTarget();timer.Start();};
-    FormClosed+=(s,e)=>timer.Dispose();
+    Shown+=(s,e)=>{SyncHit();hit.Show();KeepAboveTarget();timer.Start();};
+    FormClosed+=(s,e)=>{timer.Dispose();hit.Close();hit.Dispose();};
   }
   protected override bool ShowWithoutActivation { get { return true; } }
   protected override CreateParams CreateParams {
-    get { var p=base.CreateParams;p.ExStyle|=0x08000000;return p; } // WS_EX_NOACTIVATE
+    get { var p=base.CreateParams;p.ExStyle|=0x08000020;return p; } // NOACTIVATE | TRANSPARENT
   }
+  internal IntPtr HitHandle { get { return hit.Handle; } }
+  internal Region HitRegion { get { return hit.Region; } }
   void Tick(object sender,EventArgs e) {
     if(!Win.IsWindow(target)){Close();return;}
     if(Win.IsIconic(target)||!Win.IsWindowVisible(target)) {
-      if(Visible)Hide();lastX=lastY=double.NaN;lastTick=DateTime.UtcNow;timer.Interval=66;return;
+      if(Visible)Hide();if(hit.Visible)hit.Hide();lastX=lastY=double.NaN;
+      lastTick=DateTime.UtcNow;timer.Interval=66;return;
     }
     var now=DateTime.UtcNow;
     double dt=Math.Min(.05,Math.Max(.001,(now-lastTick).TotalSeconds));lastTick=now;
@@ -140,14 +143,22 @@ class PetForm : Form {
     if(moved||Math.Abs(oldX-rope.End.X)>.01||Math.Abs(oldY-rope.End.Y)>.01||oldPoke!=poke)Invalidate();
     timer.Interval=rope.IsSettled(AX,AY)&&poke==0?66:16;
     if(!Visible) Show();
+    SyncHit();
+    if(!hit.Visible)hit.Show();
     KeepAboveTarget();
+  }
+  void SyncHit() {
+    hit.SetDesktopLocation(Left+(int)Math.Round(center.X)-43,Top+(int)Math.Round(center.Y)-39);
   }
   void KeepAboveTarget() {
     if(!Visible)return;
-    // GW_HWNDPREV returns the window directly above the target. Insert the pet
-    // between that window and the target, preserving unrelated window occlusion.
+    // Keep both layers directly above target and below unrelated windows.
     IntPtr above=Win.GetWindow(target,3);
-    if(above!=Handle) Win.SetWindowPos(Handle,above,0,0,0,0,0x0013);
+    while(above==Handle||above==hit.Handle)above=Win.GetWindow(above,3);
+    if(Win.GetWindow(target,3)!=Handle||Win.GetWindow(Handle,3)!=hit.Handle) {
+      Win.SetWindowPos(Handle,above,0,0,0,0,0x0013);
+      Win.SetWindowPos(hit.Handle,above,0,0,0,0,0x0013);
+    }
   }
   bool UpdateTarget() {
     Win.Rect r;if(!Win.GetWindowRect(target,out r))return false;
@@ -162,10 +173,6 @@ class PetForm : Form {
     int left=(int)x-AX,top=(int)y-AY;
     if(Left!=left||Top!=top||first){SetDesktopLocation(left,top);first=false;moved=true;}
     return moved;
-  }
-  bool HitPet(Point p) {
-    double dx=p.X-center.X,dy=p.Y-center.Y;
-    return dx*dx/(47*47.0)+dy*dy/(50*50.0)<1;
   }
   protected override void OnPaint(PaintEventArgs e) {
     base.OnPaint(e);
@@ -191,5 +198,21 @@ class PetForm : Form {
     using(var b=new SolidBrush(edge)){g.FillEllipse(b,-23,-6,7,11);g.FillEllipse(b,16,-6,7,11);}
     using(var b=new SolidBrush(Color.FromArgb(232,115,145)))g.FillEllipse(b,-7,13,14,8);
     g.Restore(save);
+  }
+}
+class HitForm : Form {
+  public HitForm(Action poke) {
+    FormBorderStyle=FormBorderStyle.None;ShowInTaskbar=false;
+    StartPosition=FormStartPosition.Manual;ClientSize=new Size(86,81);
+    BackColor=Color.White;Opacity=.01;
+    using(var path=new GraphicsPath()) {
+      path.AddEllipse(new Rectangle(0,0,86,81));
+      Region=new Region(path);
+    }
+    MouseDown+=(s,e)=>{if(e.Button==MouseButtons.Left)poke();};
+  }
+  protected override bool ShowWithoutActivation { get { return true; } }
+  protected override CreateParams CreateParams {
+    get { var p=base.CreateParams;p.ExStyle|=0x08000000;return p; }
   }
 }
