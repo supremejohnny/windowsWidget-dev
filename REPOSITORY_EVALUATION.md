@@ -9,4 +9,4 @@ All candidates were cloned outside this Git repository, under `C:\Users\Administ
 | [ImOverlay-DX11](https://github.com/rabbanyhmm/ImOverlay-DX11) | `ffa59a3` | Inspected CMake and MIT license; no C++ toolchain on this host | Could serve a future native Direct3D renderer, but it requires Dear ImGui and D3D11; too large for the present pet |
 | [procmod/overlay](https://github.com/procmod/overlay) | `9976216` | Inspected Cargo manifest and MIT license; Rust toolchain unavailable here | Useful reference for native window tracking; its click-through game overlay model would require interaction changes |
 
-Our own `test.ps1` compiles and runs physics and GUI smoke tests. It verifies the fixed anchor, segment lengths, poke response, pre-show placement, x/y tracking, and hiding when another window becomes foreground.
+Our own `test.ps1` compiles and runs physics and GUI smoke tests. It verifies the fixed anchor, segment lengths, poke response, pre-show placement, x/y tracking, and the target-pet-other window order when another window becomes foreground.

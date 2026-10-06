@@ -20,6 +20,7 @@ static class Win {
   [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
   [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
   [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr h,IntPtr after,int x,int y,int width,int height,uint flags);
+  [DllImport("user32.dll")] public static extern IntPtr GetWindow(IntPtr h,uint command);
 }
 class Choice {
   public IntPtr Handle; public string Name;
@@ -117,7 +118,7 @@ class PetForm : Form {
     // Position and initialize the pet before the first native window is shown.
     UpdateTarget();
     center=new PointF(AX,AY+length+29);
-    Shown+=(s,e)=>timer.Start();
+    Shown+=(s,e)=>{KeepAboveTarget();timer.Start();};
     FormClosed+=(s,e)=>timer.Dispose();
   }
   protected override bool ShowWithoutActivation { get { return true; } }
@@ -126,8 +127,7 @@ class PetForm : Form {
   }
   void Tick(object sender,EventArgs e) {
     if(!Win.IsWindow(target)){Close();return;}
-    bool active=Win.GetForegroundWindow()==target;
-    if(Win.IsIconic(target)||!Win.IsWindowVisible(target)||!active) {
+    if(Win.IsIconic(target)||!Win.IsWindowVisible(target)) {
       if(Visible)Hide();lastX=lastY=double.NaN;lastTick=DateTime.UtcNow;timer.Interval=66;return;
     }
     var now=DateTime.UtcNow;
@@ -139,7 +139,15 @@ class PetForm : Form {
     center=new PointF(rope.End.X,rope.End.Y+29);
     if(moved||Math.Abs(oldX-rope.End.X)>.01||Math.Abs(oldY-rope.End.Y)>.01||oldPoke!=poke)Invalidate();
     timer.Interval=rope.IsSettled(AX,AY)&&poke==0?66:16;
-    if(!Visible) { Show();Win.SetWindowPos(Handle,IntPtr.Zero,0,0,0,0,0x0013); }
+    if(!Visible) Show();
+    KeepAboveTarget();
+  }
+  void KeepAboveTarget() {
+    if(!Visible)return;
+    // GW_HWNDPREV returns the window directly above the target. Insert the pet
+    // between that window and the target, preserving unrelated window occlusion.
+    IntPtr above=Win.GetWindow(target,3);
+    if(above!=Handle) Win.SetWindowPos(Handle,above,0,0,0,0,0x0013);
   }
   bool UpdateTarget() {
     Win.Rect r;if(!Win.GetWindowRect(target,out r))return false;

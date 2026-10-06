@@ -10,6 +10,7 @@ A small Windows overlay pet that hangs from the upper-left corner of a selected 
 ```
 
 This uses the C# compiler included with .NET Framework. No SDK or package download is needed on a standard Windows installation. Choose an open window, one of three placeholder pets, and rope length, then press **Attach**. Use **Refresh** to update the window list and **Detach** to remove the pet. Closing the control window exits.
+Close a running WindowPet before rebuilding its executable.
 
 Run `.\test.ps1` for the rope and window-behavior smoke tests.
 
@@ -19,9 +20,9 @@ Run `.\test.ps1` for the rope and window-behavior smoke tests.
 - `PetForm` is one transparent WinForms window. Its location is derived directly from the selected window's `GetWindowRect`. The anchor is rendered at a fixed pixel inside this overlay.
 - `RopePhysics` uses eight Verlet-style segments with distance constraints. Moving the anchor in either axis leaves the free nodes with inertia, so the rope bends and the pet catches up. Clicking adds an impulse and squash effect.
 - The 520 × 420 overlay reserves space for maximum rope length and swing. It is positioned and the pet is initialized before the first paint, avoiding the startup flash at the edge.
-- The pet is shown only while its target window is foreground. It is placed above the target in the normal window stack without becoming topmost or taking focus. It polls at 16 ms while moving and 66 ms at rest, and repaints only on changes. No image assets or browser engine are loaded.
+- The pet remains visible whenever its target is visible and unminimized. It is kept immediately above the target in the normal window stack, so other windows cover both. The pet does not take focus. It polls at 16 ms while moving and 66 ms at rest, and repaints only on changes. No image assets or browser engine are loaded.
 
-Foreground changes can take up to one idle tick (66 ms) to hide the overlay. Exact z-order coupling and multi-window attachments are later architecture steps. The three pets are original placeholder drawings.
+Window stacking is synchronized on each tick, so a newly raised window can briefly expose the pet for at most one idle tick (66 ms). Event-driven z-order updates and multi-window attachments are later architecture steps. The three pets are original placeholder drawings.
 
 ## Relevant open source
 

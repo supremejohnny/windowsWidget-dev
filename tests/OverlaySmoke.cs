@@ -20,12 +20,15 @@ class OverlaySmoke {
       Check(pet.Left==r.Left+36-260 && pet.Top==r.Top+4-52,"position before Show");
       pet.Show();Win.SetForegroundWindow(target.Handle);Pump(150);
       Check(pet.Visible,"visible with target foreground");
+      Check(Win.GetWindow(target.Handle,3)==pet.Handle,"pet immediately above target");
       target.Location=new Point(540,340);Pump(100);
       Win.GetWindowRect(target.Handle,out r);
       Check(pet.Left==r.Left+36-260 && pet.Top==r.Top+4-52,"tracks x and y");
       other.Text="Window Pet smoke occluder";other.StartPosition=FormStartPosition.Manual;
       other.Location=new Point(600,350);other.Show();Win.SetForegroundWindow(other.Handle);Pump(150);
-      Check(!pet.Visible,"hides behind another foreground window");
+      Check(pet.Visible,"pet remains attached while another window is foreground");
+      Check(Win.GetWindow(target.Handle,3)==pet.Handle,"pet immediately above target after occlusion");
+      Check(Win.GetWindow(pet.Handle,3)==other.Handle,"other window remains above pet");
       pet.Close();
     }
     Console.WriteLine("Overlay smoke test passed");
