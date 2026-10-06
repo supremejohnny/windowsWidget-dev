@@ -17,6 +17,9 @@ static class Win {
   [DllImport("user32.dll")] public static extern int GetWindowText(IntPtr h,StringBuilder s,int n);
   [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h,out uint pid);
   [DllImport("user32.dll")] public static extern bool SetProcessDPIAware();
+  [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+  [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
+  [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr h,IntPtr after,int x,int y,int width,int height,uint flags);
 }
 class Choice {
   public IntPtr Handle; public string Name;
@@ -85,53 +88,69 @@ class SettingsForm : Form {
     if(choice==null||!Win.IsWindow(choice.Handle)) { status.Text="Refresh and choose an open window."; return; }
     overlay=new PetForm(choice.Handle,pets.SelectedIndex,(int)rope.Value);
     overlay.FormClosed+=(s,a)=>{overlay=null;attach.Text="Attach";status.Text="Detached.";};
+    Win.SetForegroundWindow(choice.Handle);
     overlay.Show(); attach.Text="Detach"; status.Text="Attached. Click the pet to poke it.";
   }
   protected override void OnFormClosed(FormClosedEventArgs e) { if(overlay!=null) overlay.Close(); base.OnFormClosed(e); }
 }
 class PetForm : Form {
-  const int AX=220,AY=46;
+  const int AX=260,AY=52;
   IntPtr target; int pet,length;
   Timer timer=new Timer();
-  double angle,velocity,lastX=double.NaN,poke;
+  RopePhysics rope;
+  double lastX=double.NaN,lastY=double.NaN,poke;
   DateTime lastTick=DateTime.UtcNow;
   PointF center;
   Color key=Color.FromArgb(1,2,3);
   bool first=true;
   public PetForm(IntPtr h,int preset,int ropeLength) {
     target=h;pet=preset;length=ropeLength;
-    FormBorderStyle=FormBorderStyle.None;ShowInTaskbar=false;TopMost=true;
-    StartPosition=FormStartPosition.Manual;ClientSize=new Size(440,390);
+    rope=new RopePhysics(length,AX,AY);
+    FormBorderStyle=FormBorderStyle.None;ShowInTaskbar=false;
+    StartPosition=FormStartPosition.Manual;ClientSize=new Size(520,420);
     BackColor=key;TransparencyKey=key;DoubleBuffered=true;
     timer.Interval=16;timer.Tick+=Tick;
     MouseDown+=(s,e)=>{
       if(e.Button==MouseButtons.Left&&HitPet(e.Location))
-        {velocity+=angle<=0?2.4:-2.4;poke=1;timer.Interval=16;}
+        {rope.Poke(center.X<=AX?20:-20);poke=1;timer.Interval=16;}
     };
-    Shown+=(s,e)=>{UpdateTarget();timer.Start();};
+    // Position and initialize the pet before the first native window is shown.
+    UpdateTarget();
+    center=new PointF(AX,AY+length+29);
+    Shown+=(s,e)=>timer.Start();
     FormClosed+=(s,e)=>timer.Dispose();
+  }
+  protected override bool ShowWithoutActivation { get { return true; } }
+  protected override CreateParams CreateParams {
+    get { var p=base.CreateParams;p.ExStyle|=0x08000000;return p; } // WS_EX_NOACTIVATE
   }
   void Tick(object sender,EventArgs e) {
     if(!Win.IsWindow(target)){Close();return;}
-    if(Win.IsIconic(target)||!Win.IsWindowVisible(target)){if(Visible)Hide();lastX=double.NaN;return;}
+    bool active=Win.GetForegroundWindow()==target;
+    if(Win.IsIconic(target)||!Win.IsWindowVisible(target)||!active) {
+      if(Visible)Hide();lastX=lastY=double.NaN;lastTick=DateTime.UtcNow;timer.Interval=66;return;
+    }
     var now=DateTime.UtcNow;
     double dt=Math.Min(.05,Math.Max(.001,(now-lastTick).TotalSeconds));lastTick=now;
-    double old=angle,oldPoke=poke;
+    float oldX=rope.End.X,oldY=rope.End.Y;double oldPoke=poke;
     bool moved=UpdateTarget();
-    velocity+=(-14*Math.Sin(angle)-3.3*velocity)*dt;
-    angle=Math.Max(-.82,Math.Min(.82,angle+velocity*dt));
+    rope.Step((float)dt,AX,AY);
     poke=Math.Max(0,poke-3.8*dt);
-    center=new PointF((float)(AX+length*Math.Sin(angle)),(float)(AY+length*Math.Cos(angle)+29));
-    if(moved||Math.Abs(old-angle)>.001||Math.Abs(oldPoke-poke)>.001)Invalidate();
-    timer.Interval=Math.Abs(angle)<.003&&Math.Abs(velocity)<.015&&poke==0?66:16;
-    if(!Visible)Show();
+    center=new PointF(rope.End.X,rope.End.Y+29);
+    if(moved||Math.Abs(oldX-rope.End.X)>.01||Math.Abs(oldY-rope.End.Y)>.01||oldPoke!=poke)Invalidate();
+    timer.Interval=rope.IsSettled(AX,AY)&&poke==0?66:16;
+    if(!Visible) { Show();Win.SetWindowPos(Handle,IntPtr.Zero,0,0,0,0,0x0013); }
   }
   bool UpdateTarget() {
     Win.Rect r;if(!Win.GetWindowRect(target,out r))return false;
     double x=r.Left+36,y=r.Top+4;
-    bool moved=first||x!=lastX;
-    if(!double.IsNaN(lastX))velocity-=Math.Max(-120,Math.Min(120,x-lastX))*.025;
-    lastX=x;
+    bool moved=first||x!=lastX||y!=lastY;
+    if(!double.IsNaN(lastX)) {
+      double dx=x-lastX,dy=y-lastY;
+      if(Math.Abs(dx)>250||Math.Abs(dy)>250) rope=new RopePhysics(length,AX,AY);
+      else rope.ShiftAnchor((float)dx,(float)dy);
+    }
+    lastX=x;lastY=y;
     int left=(int)x-AX,top=(int)y-AY;
     if(Left!=left||Top!=top||first){SetDesktopLocation(left,top);first=false;moved=true;}
     return moved;
@@ -145,11 +164,13 @@ class PetForm : Form {
     var g=e.Graphics;g.SmoothingMode=SmoothingMode.AntiAlias;
     Color fill=pet==1?Color.FromArgb(225,177,106):pet==2?Color.FromArgb(145,222,199):Color.FromArgb(213,169,229);
     Color edge=pet==1?Color.FromArgb(110,72,46):pet==2?Color.FromArgb(52,106,98):Color.FromArgb(103,70,119);
-    float endX=(float)(AX+length*Math.Sin(angle)),endY=(float)(AY+length*Math.Cos(angle));
-    using(var pen=new Pen(Color.FromArgb(92,100,117),2))g.DrawLine(pen,AX,AY,endX,endY);
+    var nodes=rope.Points;
+    using(var pen=new Pen(Color.FromArgb(92,100,117),2))
+      for(int i=0;i<nodes.Length-1;i++)g.DrawLine(pen,nodes[i],nodes[i+1]);
     using(var b=new SolidBrush(Color.FromArgb(92,100,117)))g.FillEllipse(b,AX-6,AY-6,12,12);
     var save=g.Save();g.TranslateTransform(center.X,center.Y);
-    g.RotateTransform((float)(angle*180/Math.PI*.65));
+    var end=nodes[nodes.Length-1];var before=nodes[nodes.Length-2];
+    g.RotateTransform((float)(Math.Atan2(end.X-before.X,end.Y-before.Y)*180/Math.PI*.65));
     float squash=(float)(1-.12*poke);g.ScaleTransform(1/squash,squash);
     using(var b=new SolidBrush(fill)) {
       if(pet==0) {
