@@ -4,3 +4,4 @@ RopePhysicsSmoke.exe
 OverlaySmoke.exe
 *.log
 .test-output/
+dist/

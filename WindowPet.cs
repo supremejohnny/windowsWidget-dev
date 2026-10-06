@@ -71,7 +71,17 @@ class SettingsForm : Form {
     attach.Click+=AttachClick; Controls.Add(attach);
     status.Location=new Point(16,240); status.Size=new Size(322,26);
     status.Text="Choose a window, corner, pet, and length."; Controls.Add(status);
+    var about=new LinkLabel{Text="0.0.1-pre / About",AutoSize=true,Location=new Point(224,7)};
+    about.LinkClicked+=(s,e)=>ShowAbout();Controls.Add(about);
     RefreshWindows();
+  }
+  void ShowAbout() {
+    using(var dialog=new Form()) {
+      dialog.Text="Window Pet 0.0.1-pre";dialog.Size=new Size(560,420);
+      dialog.StartPosition=FormStartPosition.CenterParent;
+      var notice=new TextBox{Multiline=true,ReadOnly=true,ScrollBars=ScrollBars.Vertical,Dock=DockStyle.Fill,Text=PetAssets.Notices()};
+      dialog.Controls.Add(notice);dialog.ShowDialog(this);
+    }
   }
   void RefreshWindows() {
     IntPtr previous=windows.SelectedItem is Choice ? ((Choice)windows.SelectedItem).Handle : IntPtr.Zero;
@@ -140,18 +150,7 @@ class PetForm : Form {
     FormBorderStyle=FormBorderStyle.None;ShowInTaskbar=false;
     StartPosition=FormStartPosition.Manual;ClientSize=new Size(CanvasWidth,CanvasHeight);
     surface=new LayeredSurface(CanvasWidth,CanvasHeight);
-    if(pet==3) {
-      string file=Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"assets","amiya_test1","character.png");
-      if(!File.Exists(file))throw new FileNotFoundException("Missing pet asset amiya_test1",file);
-      using(var stream=File.OpenRead(file))using(var loaded=Image.FromStream(stream)) {
-        petImage=new Bitmap(320,296,System.Drawing.Imaging.PixelFormat.Format32bppPArgb);
-        using(var graphics=Graphics.FromImage(petImage)) {
-          graphics.Clear(Color.Transparent);
-          graphics.InterpolationMode=InterpolationMode.HighQualityBicubic;
-          graphics.DrawImage(loaded,new Rectangle(0,0,320,296));
-        }
-      }
-    }
+    if(pet==3)petImage=PetAssets.LoadAmiya();
     body=petImage!=null?PetBodyPhysics.FromImage((Bitmap)petImage,160,148):new PetBodyPhysics(0,63,6500);
     timer.Interval=16;timer.Tick+=Tick;
     hit=new HitForm(pet==3?160:86,pet==3?148:81,

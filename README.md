@@ -1,5 +1,7 @@
 # Window Pet
 
+**0.0.1-pre** — Windows preview candidate. The accepted physics baseline is retained. See [architecture](docs/ARCHITECTURE.md), [Windows/macOS compatibility and resource study](docs/COMPATIBILITY.md), and [release notes](docs/RELEASE_0.0.1.md).
+
 A small Windows overlay pet attached to a selected corner of a window. Move the target window to swing the pet; click the pet to poke it. Click the single fixed anchor to tuck the pet away, leaving an 18 px static rope stub. Click again to bring the pet back.
 
 ## Build and run
@@ -11,6 +13,24 @@ A small Windows overlay pet attached to a selected corner of a window. Move the 
 
 This uses the C# compiler included with .NET Framework. No SDK or package download is needed on a standard Windows installation. Choose an open window, one of three placeholder pets or the `amiya_test1` image asset, one of four corners (upper left, upper right, lower left, lower right), and a fixed rope length: short 55 px, medium 85 px, long 130 px, or extra long 190 px. Press **Attach**. Use **Refresh** to update the window list and **Detach** to remove the pet. Closing the control window exits.
 Close a running WindowPet before rebuilding its executable.
+
+The built-in image and upstream license are embedded in the EXE. You can copy just the executable to another folder. **About** shows the version and third-party notices. The current application uses the system .NET Framework; it is not a self-contained runtime bundle or a macOS application.
+
+To build a release candidate without disturbing a running project executable:
+
+```powershell
+.\build-release.ps1
+```
+
+The candidate and SHA-256 checksum are written to `dist/v0.0.1-pre/`. This also checks resource loading in a folder with no asset files, under 32-bit and 64-bit CLR hosts when available. It does not upload to GitHub. Full UI testing is currently on Windows 10 22H2 x64; other systems remain unverified.
+
+To record an hour of usage from a running instance:
+
+```powershell
+.\measure-usage.ps1 -DurationMinutes 60 -IntervalSeconds 10
+```
+
+With multiple instances, supply `-ProcessId`. CSV includes private and total working sets, private bytes, CPU deltas, and GDI/USER handles. The sampler runs only when invoked.
 
 Run `.\test.ps1` for the upstream parity, rope, rigid-body, and window-behavior smoke tests. The window test also writes still and moving pet previews to `.test-output`. If Node.js is installed, the unchanged upstream JavaScript is checked against the reference fixture; Node.js is not required to build or run WindowPet.
 

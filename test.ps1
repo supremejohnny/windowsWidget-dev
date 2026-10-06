@@ -17,7 +17,7 @@ finally { Remove-Item -LiteralPath .\RopePhysicsSmoke.exe -ErrorAction SilentlyC
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 try { & .\PetBodyPhysicsSmoke.exe; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE } }
 finally { Remove-Item -LiteralPath .\PetBodyPhysicsSmoke.exe -ErrorAction SilentlyContinue }
-& $compiler /nologo /target:exe /main:OverlaySmoke /out:OverlaySmoke.exe /reference:System.Drawing.dll /reference:System.Windows.Forms.dll WindowPet.cs RopePhysics.cs VerletRopeSolver.cs PetBodyPhysics.cs LayeredSurface.cs tests\OverlaySmoke.cs
+& $compiler /nologo /target:exe /main:OverlaySmoke /out:OverlaySmoke.exe /reference:System.Drawing.dll /reference:System.Windows.Forms.dll /resource:assets/amiya_test1/character.png,WindowPet.amiya_test1.png /resource:THIRD_PARTY_NOTICES.txt,WindowPet.NOTICES.txt AssemblyInfo.cs PetAssets.cs WindowPet.cs RopePhysics.cs VerletRopeSolver.cs PetBodyPhysics.cs LayeredSurface.cs tests\OverlaySmoke.cs
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 try { & .\OverlaySmoke.exe; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE } }
 finally { Remove-Item -LiteralPath .\OverlaySmoke.exe -ErrorAction SilentlyContinue }
