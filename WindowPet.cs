@@ -202,6 +202,7 @@ class PetForm : Form {
   internal bool IsStowed { get { return stowed; } }
   internal int PhysicsSteps { get { return physicsSteps; } }
   internal PointF[] StowedPoints { get { return stowedPoints; } }
+  internal PointF[] RenderedRopePoints { get { return drawPoints; } }
   internal double BodyAngle { get { return body.Angle; } }
   internal double BodyRestAngle { get { return body.RestAngle; } }
   internal PointF BodyCenterOfMass { get { return body.RotatedCenter; } }

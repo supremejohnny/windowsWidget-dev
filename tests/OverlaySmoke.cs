@@ -128,6 +128,18 @@ class OverlaySmoke {
         }
         Console.WriteLine("Image pet max body tilt: {0:F1} degrees",maxTilt*180/Math.PI);
         Pump(1500);
+        int swayStart=target.Left;double maxSwayBow=0;
+        for(int frame=1;frame<=90;frame++) {
+          target.Left=swayStart+(int)Math.Round(18*Math.Sin(2*Math.PI*frame/45));Pump(16);
+          PointF[] nodes=imagePet.RenderedRopePoints;
+          double dx=nodes[nodes.Length-1].X-nodes[0].X,dy=nodes[nodes.Length-1].Y-nodes[0].Y;
+          double chord=Math.Sqrt(dx*dx+dy*dy),bow=0;
+          foreach(var node in nodes)bow=Math.Max(bow,Math.Abs((node.X-nodes[0].X)*dy-(node.Y-nodes[0].Y)*dx)/chord);
+          if(bow>maxSwayBow) { maxSwayBow=bow;CheckRender(imagePet,"amiya_test1-sway"); }
+        }
+        Check(maxSwayBow>1,"rendered rope curves during real window reversals");
+        Console.WriteLine("Rendered left-right rope bow: {0:F2}px",maxSwayBow);
+        Pump(1500);
         int startingLeft=target.Left;
         for(int frame=1;frame<=90;frame++) {
           target.Left=startingLeft+(int)Math.Round(25*(1-Math.Cos(Math.PI*frame/90)));

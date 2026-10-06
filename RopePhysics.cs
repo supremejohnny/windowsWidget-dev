@@ -1,117 +1,118 @@
 using System;
 using System.Drawing;
 
-// A light, tension-only tether. Only the pet endpoint has inertia; the twelve
-// drawing segments take their shape from its distance to the pinned anchor.
+// Twelve constrained segments with light numerical inertia, but no rope
+// gravity. The hanging pet is the only node accelerated by gravity.
 class RopePhysics {
   public const int Segments=12;
   const float FixedStep=1f/120;
-  const int ShapeSamples=64;
-  static readonly float MotionBlend=1-(float)Math.Exp(-14*FixedStep);
-  static readonly float SwingDamping=1-(float)Math.Exp(-3.2*FixedStep);
+  float accumulator;
   readonly PointF[] point=new PointF[Segments+1];
-  readonly PointF[] shape=new PointF[ShapeSamples+1];
-  readonly float[] arc=new float[ShapeSamples+1];
-  readonly float length;
-  float accumulator,x,y,vx,vy,pendingX,pendingY;
-  float anchorVelocityX,anchorVelocityY,accelerationX,accelerationY;
+  readonly PointF[] previous=new PointF[Segments+1];
+  readonly PointF[] velocity=new PointF[Segments+1];
+  readonly float segmentLength;
+  readonly float petGravity;
+  float pendingX,pendingY;
   public PointF End { get { return point[Segments]; } }
   public PointF[] Points { get { return point; } }
-  public RopePhysics(int ropeLength,float anchorX,float anchorY) {
-    length=ropeLength;y=length;
-    BuildShape(anchorX,anchorY);
+  public RopePhysics(int length,float anchorX,float anchorY) : this(length,anchorX,anchorY,980) { }
+  internal RopePhysics(int length,float anchorX,float anchorY,float endpointGravity) {
+    petGravity=endpointGravity;
+    segmentLength=length/(float)Segments;
+    for(int i=0;i<=Segments;i++) point[i]=previous[i]=new PointF(anchorX,anchorY+i*segmentLength);
   }
   public void ShiftAnchor(float dx,float dy) {
-    // Input belongs to the anchor, rather than giving each rope segment its
-    // own displacement and velocity. Constant-speed motion adds no new force.
+    // Rebase the moving anchor frame over fixed steps, retaining screen-space
+    // inertia. There is no per-segment movement multiplier or added impulse.
     pendingX+=dx;pendingY+=dy;
   }
-  public void Poke(float horizontal) { vx+=horizontal*10;vy-=14; }
+  public void Poke(float horizontal) {
+    previous[Segments].X-=horizontal*.12f;
+    previous[Segments].Y-=.12f;
+  }
   public void Step(float dt,float anchorX,float anchorY) {
-    dt=Math.Max(.001f,Math.Min(.05f,dt));
-    accumulator+=dt;
-    float inputX=pendingX/accumulator,inputY=pendingY/accumulator,consumed=0;
+    accumulator+=Math.Max(.001f,Math.Min(.05f,dt));
+    float shiftX=pendingX/accumulator*FixedStep,shiftY=pendingY/accumulator*FixedStep;
     while(accumulator>=FixedStep) {
-      Integrate(inputX,inputY);
-      accumulator-=FixedStep;consumed+=FixedStep;
+      Integrate(anchorX,anchorY,shiftX,shiftY);
+      accumulator-=FixedStep;
+      pendingX-=shiftX;pendingY-=shiftY;
     }
-    // Keep input belonging to an unfinished fixed step, even at >120 Hz.
-    pendingX-=inputX*consumed;pendingY-=inputY*consumed;
-    BuildShape(anchorX,anchorY);
+    point[0]=previous[0]=new PointF(anchorX,anchorY);
   }
-  void Integrate(float inputX,float inputY) {
-    // Smooth irregular native move events before deriving anchor acceleration.
-    float nextX=anchorVelocityX+Math.Max(-1200*FixedStep,Math.Min(1200*FixedStep,(inputX-anchorVelocityX)*MotionBlend));
-    float nextY=anchorVelocityY+Math.Max(-1600*FixedStep,Math.Min(1600*FixedStep,(inputY-anchorVelocityY)*MotionBlend));
-    float ax=(nextX-anchorVelocityX)/FixedStep;
-    float ay=(nextY-anchorVelocityY)/FixedStep;
-    anchorVelocityX=nextX;anchorVelocityY=nextY;
-    accelerationX+=(ax-accelerationX)*MotionBlend;
-    accelerationY+=(ay-accelerationY)*MotionBlend;
-    vx-=accelerationX*FixedStep;
-    vy+=(980-accelerationY)*FixedStep;
-
-    // Damp the swing relative to the anchor, rather than dragging the rope
-    // through screen space. The cord can pull the pet, but cannot push it.
-    float radius=(float)Math.Sqrt(x*x+y*y);
-    if(radius>.001f) {
-      float nx=x/radius,ny=y/radius,radial=vx*nx+vy*ny;
-      vx-=(vx-radial*nx)*SwingDamping;vy-=(vy-radial*ny)*SwingDamping;
+  void Integrate(float anchorX,float anchorY,float shiftX,float shiftY) {
+    for(int i=1;i<=Segments;i++) {
+      point[i].X-=shiftX;point[i].Y-=shiftY;
+      previous[i].X-=shiftX;previous[i].Y-=shiftY;
+      // Dissipation is relative to the anchor frame. Uniform window velocity
+      // should not keep driving a wave or leave the cord tilted indefinitely.
+      float damping=i==Segments?.97f:.93f;
+      velocity[i]=new PointF((point[i].X-previous[i].X-shiftX)*damping,
+        (point[i].Y-previous[i].Y-shiftY)*damping);
     }
-    vx=Math.Max(-240,Math.Min(240,vx));
-    vy=Math.Max(-120,Math.Min(300,vy));
-    x+=vx*FixedStep;y+=vy*FixedStep;
-    radius=(float)Math.Sqrt(x*x+y*y);
-    if(radius>length) {
-      float nx=x/radius,ny=y/radius;
-      x=nx*length;y=ny*length;
-      float outward=vx*nx+vy*ny;
-      if(outward>0){vx-=outward*nx;vy-=outward*ny;}
-    }
-  }
-  float SampleCurve(float depth,float bendX,float bendY) {
-    float total=0;shape[0]=new PointF(0,0);arc[0]=0;
-    for(int i=1;i<=ShapeSamples;i++) {
-      float t=i/(float)ShapeSamples,bend=4*t*(1-t)*depth;
-      // One smooth bow across the chord. Keeping its side consistent avoids
-      // a sudden shape flip when the pet crosses beneath the anchor.
-      shape[i]=new PointF(x*t+bendX*bend,y*t+bendY*bend);
-      float dx=shape[i].X-shape[i-1].X,dy=shape[i].Y-shape[i-1].Y;
-      total+=(float)Math.Sqrt(dx*dx+dy*dy);arc[i]=total;
-    }
-    return total;
-  }
-  void BuildShape(float anchorX,float anchorY) {
-    float distance=(float)Math.Sqrt(x*x+y*y);
-    if(length-distance<.001f) {
-      for(int i=0;i<=Segments;i++) {
-        float t=i/(float)Segments;
-        point[i]=new PointF(anchorX+x*t,anchorY+y*t);
+    for(int i=1;i<=Segments;i++) {
+      PointF v=velocity[i];
+      if(i<Segments) {
+        PointF before=i==1?PointF.Empty:velocity[i-1],after=velocity[i+1];
+        // Damp short spatial ripples without forcing the node positions onto
+        // a straight line. Low-frequency bending remains free to propagate.
+        v=new PointF(v.X*.8f+(before.X+after.X)*.1f,v.Y*.8f+(before.Y+after.Y)*.1f);
       }
-    } else {
-      float bendX=distance>.001f?-y/distance:-1,bendY=distance>.001f?x/distance:0;
-      float low=0,high=length;
-      for(int i=0;i<12;i++) {
-        float mid=(low+high)/2;
-        if(SampleCurve(mid,bendX,bendY)<length)low=mid;else high=mid;
+      float vx=Math.Max(-2.6f,Math.Min(2.6f,v.X));
+      float vy=Math.Max(-1.2f,Math.Min(3,v.Y));
+      previous[i]=point[i];
+      point[i].X+=vx+shiftX;
+      point[i].Y+=vy+shiftY;
+      if(i==Segments)point[i].Y+=petGravity*FixedStep*FixedStep;
+    }
+    float cordLength=segmentLength*Segments;
+    float chordX=point[Segments].X-anchorX,chordY=point[Segments].Y-anchorY;
+    float chord=(float)Math.Sqrt(chordX*chordX+chordY*chordY);
+    if(chord>1&&chord<cordLength-.2f) {
+      float bow=0;
+      for(int i=1;i<Segments;i++)bow=Math.Max(bow,Math.Abs((point[i].X-anchorX)*chordY-(point[i].Y-anchorY)*chordX)/chord);
+      // Perfectly collinear compression has no preferred bend direction.
+      // Break that numerical symmetry without injecting velocity or gravity.
+      if(bow<.02f) {
+        int middle=Segments/2;
+        point[middle].X-=.1f;previous[middle].X-=.1f;
       }
-      float total=SampleCurve((low+high)/2,bendX,bendY);int sample=1;
-      for(int i=0;i<=Segments;i++) {
-        float along=total*i/Segments;
-        while(sample<ShapeSamples&&arc[sample]<along)sample++;
-        float span=arc[sample]-arc[sample-1];
-        float t=span>.00001f?(along-arc[sample-1])/span:0;
-        point[i]=new PointF(anchorX+shape[sample-1].X+(shape[sample].X-shape[sample-1].X)*t,
-          anchorY+shape[sample-1].Y+(shape[sample].Y-shape[sample-1].Y)*t);
+    }
+    for(int iteration=0;iteration<96;iteration++) {
+      point[0]=new PointF(anchorX,anchorY);
+      // A long-range tension constraint catches abrupt upward anchor moves
+      // without waiting for stretch to travel through all twelve segments.
+      float ex=point[Segments].X-anchorX,ey=point[Segments].Y-anchorY;
+      float reach=(float)Math.Sqrt(ex*ex+ey*ey),length=segmentLength*Segments;
+      if(reach>length)point[Segments]=new PointF(anchorX+ex*length/reach,anchorY+ey*length/reach);
+      for(int n=0;n<Segments;n++) {
+        int i=iteration%2==0?n:Segments-1-n;
+        float dx=point[i+1].X-point[i].X,dy=point[i+1].Y-point[i].Y;
+        float distance=(float)Math.Sqrt(dx*dx+dy*dy);
+        if(distance<.0001f)continue;
+        float error=(distance-segmentLength)/distance;
+        if(i==0) { point[1].X-=dx*error;point[1].Y-=dy*error; }
+        else {
+          // The pet is fifty times heavier than one rope node in the solver.
+          // Rope nodes carry only enough inertia for stable curved motion.
+          float left=i==Segments-1?50f/51:.5f;
+          point[i].X+=dx*error*left;point[i].Y+=dy*error*left;
+          point[i+1].X-=dx*error*(1-left);point[i+1].Y-=dy*error*(1-left);
+        }
       }
     }
     point[0]=new PointF(anchorX,anchorY);
-    point[Segments]=new PointF(anchorX+x,anchorY+y);
+    float endX=point[Segments].X-anchorX,endY=point[Segments].Y-anchorY;
+    float endDistance=(float)Math.Sqrt(endX*endX+endY*endY),maxLength=segmentLength*Segments;
+    if(endDistance>maxLength)point[Segments]=new PointF(anchorX+endX*maxLength/endDistance,anchorY+endY*maxLength/endDistance);
   }
   public bool IsSettled(float anchorX,float anchorY) {
-    return Math.Abs(x)<1.5f&&Math.Abs(y-length)<.5f&&Math.Abs(vx)<3&&Math.Abs(vy)<3&&
-      Math.Abs(accelerationX)<4&&Math.Abs(accelerationY)<4&&
-      Math.Abs(anchorVelocityX)<2&&Math.Abs(anchorVelocityY)<2&&
-      Math.Abs(pendingX)<.001f&&Math.Abs(pendingY)<.001f;
+    for(int i=1;i<=Segments;i++) {
+      if(Math.Abs(point[i].X-anchorX)>2f ||
+         Math.Abs(point[i].Y-(anchorY+i*segmentLength))>2f ||
+         Math.Abs(point[i].X-previous[i].X)>.06f ||
+         Math.Abs(point[i].Y-previous[i].Y)>.06f) return false;
+    }
+    return Math.Abs(pendingX)<.001f&&Math.Abs(pendingY)<.001f;
   }
 }

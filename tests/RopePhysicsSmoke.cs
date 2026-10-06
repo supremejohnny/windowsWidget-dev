@@ -38,17 +38,23 @@ class RopePhysicsSmoke {
     float oldX=rope.End.X;
     rope.Poke(7);rope.Step(1f/60,260,52);
     Check(Math.Abs(rope.End.X-oldX)>.2,"gentle poke response");
+    var weightless=new RopePhysics(120,260,52,0);
+    weightless.Poke(7);
+    for(int frame=0;frame<300;frame++)weightless.Step(1f/60,260,52);
+    Check(Math.Abs(weightless.End.X-260)>2,"without pet gravity, rope nodes must not generate their own restoring weight");
     foreach(int length in new[]{55,85,130,190}) {
       var dragged=new RopePhysics(length,260,52);
-      float peak=0;
+      float peak=0,dragBow=0;
       for(int frame=0;frame<240;frame++) {
         if(frame<10)dragged.ShiftAnchor(6,0);
         dragged.Step(1f/60,260,52);
         peak=Math.Max(peak,Math.Abs(dragged.End.X-260));
+        dragBow=Math.Max(dragBow,Bow(dragged));
       }
       Console.WriteLine("{0}px rope peak swing: {1:F1}px",length,peak);
       Check(peak>5,"window acceleration gives visible swing for "+length+"px rope");
       Check(peak<45,"controlled swing amplitude for "+length+"px rope");
+      Check(dragBow>2&&dragBow<20,"twelve simulated segments bend during lateral motion");
       var lifted=new RopePhysics(length,260,52);
       float highest=52+length;
       for(int frame=0;frame<180;frame++) {
@@ -90,7 +96,17 @@ class RopePhysicsSmoke {
         maxSlack=Math.Max(maxSlack,length-ChordLength(slow));
       }
       Console.WriteLine("{0}px eased drag: bow {1:F3}px, slack {2:F3}px",length,maxBow,maxSlack);
-      Check(maxBow<.05f&&maxSlack<.1f,"slow eased drag keeps a tensioned cord without waves");
+      Check(maxBow<2.5f&&maxSlack<.1f,"slow eased drag keeps light curvature without exaggerated waves");
+
+      var swaying=new RopePhysics(length,260,52);float priorSway=0,swayBow=0;
+      for(int frame=0;frame<360;frame++) {
+        float position=frame<120?(float)(18*Math.Sin(2*Math.PI*frame/60)):0;
+        swaying.ShiftAnchor(position-priorSway,0);priorSway=position;
+        swaying.Step(1f/60,260,52);swayBow=Math.Max(swayBow,Bow(swaying));
+      }
+      Console.WriteLine("{0}px sideways reversal: max bow {1:F2}px",length,swayBow);
+      Check(swayBow>1&&swayBow<8,"left-right motion propagates controlled bends through the twelve nodes");
+      Check(swaying.IsSettled(260,52),"segmented cord settles after repeated reversals");
 
       var steady=new RopePhysics(length,260,52);
       for(int frame=0;frame<300;frame++) {
@@ -98,30 +114,23 @@ class RopePhysicsSmoke {
       }
       Check(Math.Abs(steady.End.X-260)<1.5f,"uniform window speed must not continuously drive the rope");
 
-      var slack=new RopePhysics(length,260,52);float mostSlack=0;
+      var slack=new RopePhysics(length,260,52);float mostSlack=0,slackBow=0;
       for(int frame=0;frame<240;frame++) {
         if(frame<12)slack.ShiftAnchor(0,10);
         slack.Step(1f/60,260,52);
         mostSlack=Math.Max(mostSlack,length-ChordLength(slack));
+        slackBow=Math.Max(slackBow,Bow(slack));
         Check(ChordLength(slack)<=length+.01f,"cord transmits tension without stretching");
         float drawnLength=0;
         for(int i=1;i<=RopePhysics.Segments;i++) {
           float sx=slack.Points[i].X-slack.Points[i-1].X,sy=slack.Points[i].Y-slack.Points[i-1].Y;
           drawnLength+=(float)Math.Sqrt(sx*sx+sy*sy);
         }
-        Check(drawnLength>length-1&&drawnLength<length+.1f,"slack shape preserves rope length: "+drawnLength+" / "+length+", frame "+frame);
-        float lastCross=0;int reversals=0;
-        for(int i=1;i<RopePhysics.Segments;i++) {
-          PointF a=slack.Points[i-1],b=slack.Points[i],c=slack.Points[i+1];
-          float cross=(b.X-a.X)*(c.Y-b.Y)-(b.Y-a.Y)*(c.X-b.X);
-          if(Math.Abs(cross)<.01f)continue;
-          if(lastCross*cross<0)reversals++;
-          lastCross=cross;
-        }
-        Check(reversals==0,"slack cord forms one bend rather than a wave");
+        Check(Math.Abs(drawnLength-length)<.5f,"segment solver preserves rope length within half a pixel: "+drawnLength+" / "+length+", frame "+frame);
       }
       Console.WriteLine("{0}px downward acceleration: max slack {1:F2}px",length,mostSlack);
       Check(mostSlack>.1f,"fast downward acceleration can briefly release tension");
+      Check(slackBow>.1f&&slackBow<8,"vertical slack bends the segmented cord without unstable folding");
       Check(slack.IsSettled(260,52),"slack cord returns to tension and settles");
     }
     Console.WriteLine("Rope physics smoke test passed");
