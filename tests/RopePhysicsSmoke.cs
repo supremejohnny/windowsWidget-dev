@@ -24,15 +24,6 @@ class RopePhysicsSmoke {
     float oldX=rope.End.X;
     rope.Poke(11);rope.Step(1f/60,260,52);
     Check(Math.Abs(rope.End.X-oldX)>1,"poke response");
-    var stowed=new RopePhysics(85,260,52,304,52);
-    for(int i=0;i<180;i++)stowed.Step(1f/60,260,52);
-    Check(stowed.IsSettled(260,52),"stowed rope can sleep at rest");
-    Check(stowed.Points[0].X==260 && stowed.Points[0].Y==52,"stowed first anchor");
-    Check(stowed.End.X==304 && stowed.End.Y==52,"stowed second anchor");
-    Check(stowed.Points[4].Y>105,"stowed rope forms a U");
-    float middle=stowed.Points[4].Y;
-    stowed.ShiftAnchor(0,-20);stowed.Step(1f/60,260,52);
-    Check(stowed.Points[4].Y>middle,"stowed rope reacts to vertical movement");
     Console.WriteLine("Rope physics smoke test passed");
   }
 }

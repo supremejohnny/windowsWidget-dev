@@ -36,13 +36,13 @@ static class Program {
   }
 }
 class SettingsForm : Form {
-  ComboBox windows=new ComboBox(), pets=new ComboBox();
-  NumericUpDown rope=new NumericUpDown();
+  ComboBox windows=new ComboBox(), pets=new ComboBox(), corners=new ComboBox(), lengths=new ComboBox();
+  static readonly int[] LengthPixels={55,85,130,190};
   Button attach=new Button();
   Label status=new Label();
   PetForm overlay;
   public SettingsForm() {
-    Text="Window Pet"; ClientSize=new Size(350,230); FormBorderStyle=FormBorderStyle.FixedDialog;
+    Text="Window Pet"; ClientSize=new Size(350,270); FormBorderStyle=FormBorderStyle.FixedDialog;
     MaximizeBox=false; StartPosition=FormStartPosition.CenterScreen;
     Controls.Add(new Label{Text="Window",Location=new Point(16,18),AutoSize=true});
     windows.Location=new Point(16,40); windows.Size=new Size(258,25);
@@ -54,13 +54,19 @@ class SettingsForm : Form {
     pets.DropDownStyle=ComboBoxStyle.DropDownList;
     pets.Items.AddRange(new object[]{"Lilac cat","Honey bear","Mint ghost"}); pets.SelectedIndex=0;
     Controls.Add(pets);
-    Controls.Add(new Label{Text="Rope length (px)",Location=new Point(190,80),AutoSize=true});
-    rope.Location=new Point(190,101); rope.Size=new Size(148,25);
-    rope.Minimum=35; rope.Maximum=190; rope.Value=85; Controls.Add(rope);
-    attach.Text="Attach"; attach.Location=new Point(16,146); attach.Size=new Size(322,32);
+    Controls.Add(new Label{Text="Position",Location=new Point(190,80),AutoSize=true});
+    corners.Location=new Point(190,101);corners.Size=new Size(148,25);
+    corners.DropDownStyle=ComboBoxStyle.DropDownList;
+    corners.Items.AddRange(new object[]{"左上","右上","左下","右下"});corners.SelectedIndex=0;Controls.Add(corners);
+    Controls.Add(new Label{Text="Rope length",Location=new Point(16,139),AutoSize=true});
+    lengths.Location=new Point(16,160);lengths.Size=new Size(322,25);
+    lengths.DropDownStyle=ComboBoxStyle.DropDownList;
+    lengths.Items.AddRange(new object[]{"短 (55 px)","中 (85 px)","长 (130 px)","超长 (190 px)"});
+    lengths.SelectedIndex=1;Controls.Add(lengths);
+    attach.Text="Attach"; attach.Location=new Point(16,200); attach.Size=new Size(322,32);
     attach.Click+=AttachClick; Controls.Add(attach);
-    status.Location=new Point(16,190); status.Size=new Size(322,30);
-    status.Text="Choose a window, pet, and rope length."; Controls.Add(status);
+    status.Location=new Point(16,240); status.Size=new Size(322,26);
+    status.Text="Choose a window, corner, pet, and length."; Controls.Add(status);
     RefreshWindows();
   }
   void RefreshWindows() {
@@ -89,7 +95,7 @@ class SettingsForm : Form {
     if(overlay!=null) { overlay.Close(); return; }
     var choice=windows.SelectedItem as Choice;
     if(choice==null||!Win.IsWindow(choice.Handle)) { status.Text="Refresh and choose an open window."; return; }
-    overlay=new PetForm(choice.Handle,pets.SelectedIndex,(int)rope.Value);
+    overlay=new PetForm(choice.Handle,pets.SelectedIndex,LengthPixels[lengths.SelectedIndex],corners.SelectedIndex);
     overlay.FormClosed+=(s,a)=>{overlay=null;attach.Text="Attach";status.Text="Detached.";};
     Win.SetForegroundWindow(choice.Handle);
     overlay.Show(); attach.Text="Detach"; status.Text="Attached. Click the pet to poke it.";
@@ -97,21 +103,27 @@ class SettingsForm : Form {
   protected override void OnFormClosed(FormClosedEventArgs e) { if(overlay!=null) overlay.Close(); base.OnFormClosed(e); }
 }
 class PetForm : Form {
-  const int AX=260,AY=52,SECOND_X=304;
-  IntPtr target; int pet,length;
+  const int AX=260,AY=52;
+  IntPtr target; int pet,length,corner,secondX;
   Timer timer=new Timer();
   RopePhysics rope;
   HitForm hit,anchorHit;
   bool stowed;
-  PointF[] fromPoints,drawPoints=new PointF[9];
+  PointF[] fromPoints,drawPoints=new PointF[9],stowedPoints=new PointF[9];
   double transition=1;
+  int physicsSteps;
   double lastX=double.NaN,lastY=double.NaN,poke;
   DateTime lastTick=DateTime.UtcNow;
   PointF center;
   Color key=Color.FromArgb(1,2,3);
   bool first=true;
-  public PetForm(IntPtr h,int preset,int ropeLength) {
-    target=h;pet=preset;length=ropeLength;
+  public PetForm(IntPtr h,int preset,int ropeLength,int targetCorner) {
+    target=h;pet=preset;length=ropeLength;corner=targetCorner;
+    secondX=AX+((corner==1||corner==3)?-44:44);
+    for(int i=0;i<stowedPoints.Length;i++) {
+      float t=i/(float)(stowedPoints.Length-1);
+      stowedPoints[i]=new PointF(AX+(secondX-AX)*t,AY+58*(float)Math.Sin(Math.PI*t));
+    }
     rope=new RopePhysics(length,AX,AY);
     FormBorderStyle=FormBorderStyle.None;ShowInTaskbar=false;
     StartPosition=FormStartPosition.Manual;ClientSize=new Size(520,420);
@@ -134,10 +146,12 @@ class PetForm : Form {
   internal Region HitRegion { get { return hit.Region; } }
   internal IntPtr AnchorHandle { get { return anchorHit.Handle; } }
   internal bool IsStowed { get { return stowed; } }
+  internal int PhysicsSteps { get { return physicsSteps; } }
+  internal PointF[] StowedPoints { get { return stowedPoints; } }
   void ToggleStowed() {
     fromPoints=(PointF[])drawPoints.Clone();
     stowed=!stowed;transition=0;
-    rope=stowed?new RopePhysics(length,AX,AY,SECOND_X,AY):new RopePhysics(length,AX,AY);
+    if(!stowed)rope=new RopePhysics(length,AX,AY);
     if(stowed)hit.Hide();
     timer.Interval=16;Invalidate();
   }
@@ -151,18 +165,18 @@ class PetForm : Form {
     double dt=Math.Min(.05,Math.Max(.001,(now-lastTick).TotalSeconds));lastTick=now;
     float oldX=rope.End.X,oldY=rope.End.Y;double oldPoke=poke;
     bool moved=UpdateTarget();
-    bool sleeping=!moved&&transition==1&&poke==0&&rope.IsSettled(AX,AY);
-    if(!sleeping)rope.Step((float)dt,AX,AY);
+    bool sleeping=stowed||(!moved&&transition==1&&poke==0&&rope.IsSettled(AX,AY));
+    if(!sleeping){rope.Step((float)dt,AX,AY);physicsSteps++;}
     transition=Math.Min(1,transition+dt*3.5);
     float blend=(float)(transition*transition*(3-2*transition));
     for(int i=0;i<drawPoints.Length;i++) {
-      PointF end=rope.Points[i],start=transition<1?fromPoints[i]:end;
+      PointF end=stowed?stowedPoints[i]:rope.Points[i],start=transition<1?fromPoints[i]:end;
       drawPoints[i]=new PointF(start.X+(end.X-start.X)*blend,start.Y+(end.Y-start.Y)*blend);
     }
     poke=Math.Max(0,poke-3.8*dt);
     center=new PointF(drawPoints[8].X,drawPoints[8].Y+29);
     if(moved||transition<1||Math.Abs(oldX-rope.End.X)>.01||Math.Abs(oldY-rope.End.Y)>.01||oldPoke!=poke)Invalidate();
-    timer.Interval=transition==1&&rope.IsSettled(AX,AY)&&poke==0?66:16;
+    timer.Interval=transition==1&&(stowed||(rope.IsSettled(AX,AY)&&poke==0))?66:16;
     if(!Visible) Show();
     SyncHit();
     if(!anchorHit.Visible)anchorHit.Show();
@@ -194,12 +208,15 @@ class PetForm : Form {
   }
   bool UpdateTarget() {
     Win.Rect r;if(!Win.GetWindowRect(target,out r))return false;
-    double x=r.Left+36,y=r.Top+4;
+    double x=(corner==1||corner==3)?r.Right-36:r.Left+36;
+    double y=(corner==2||corner==3)?r.Bottom-4:r.Top+4;
     bool moved=first||x!=lastX||y!=lastY;
     if(!double.IsNaN(lastX)) {
       double dx=x-lastX,dy=y-lastY;
-      if(Math.Abs(dx)>250||Math.Abs(dy)>250) {rope=stowed?new RopePhysics(length,AX,AY,SECOND_X,AY):new RopePhysics(length,AX,AY);transition=1;}
-      else rope.ShiftAnchor((float)dx,(float)dy);
+      if(!stowed) {
+        if(Math.Abs(dx)>250||Math.Abs(dy)>250) {rope=new RopePhysics(length,AX,AY);transition=1;}
+        else rope.ShiftAnchor((float)dx,(float)dy);
+      }
     }
     lastX=x;lastY=y;
     int left=(int)x-AX,top=(int)y-AY;
@@ -216,7 +233,7 @@ class PetForm : Form {
       for(int i=0;i<nodes.Length-1;i++)g.DrawLine(pen,nodes[i],nodes[i+1]);
     using(var b=new SolidBrush(Color.FromArgb(92,100,117))) {
       g.FillEllipse(b,AX-6,AY-6,12,12);
-      if(stowed)g.FillEllipse(b,SECOND_X-5,AY-5,10,10);
+      if(stowed)g.FillEllipse(b,secondX-5,AY-5,10,10);
     }
     if(stowed)return;
     var save=g.Save();g.TranslateTransform(center.X,center.Y);

@@ -24,7 +24,7 @@ class OverlaySmoke {
     using(var target=new Form()) using(var other=new Form()) {
       target.Text="Window Pet smoke target";target.StartPosition=FormStartPosition.Manual;
       target.Location=new Point(500,300);target.Size=new Size(500,400);target.Show();
-      var pet=new PetForm(target.Handle,0,100);
+      var pet=new PetForm(target.Handle,0,100,0);
       Check(!pet.TopMost,"pet must stay in normal z-order");
       Win.Rect r;Win.GetWindowRect(target.Handle,out r);
       Check(pet.Left==r.Left+36-260 && pet.Top==r.Top+4-52,"position before Show");
@@ -55,6 +55,12 @@ class OverlaySmoke {
       Check(pet.IsStowed,"anchor click stows pet");
       Check(!Win.IsWindowVisible(pet.HitHandle),"pet input hides when stowed");
       Check(Win.IsWindowVisible(pet.AnchorHandle),"anchor stays clickable");
+      Check(pet.StowedPoints[0].X==260 && pet.StowedPoints[8].X==304,
+        "stowed rope has two fixed endpoints");
+      Check(pet.StowedPoints[4].Y>100,"stowed rope forms a U");
+      int stepsAtRest=pet.PhysicsSteps;
+      target.Location=new Point(560,360);Pump(180);
+      Check(pet.PhysicsSteps==stepsAtRest,"stowed mode does not simulate physics even while target moves");
       Check(VisibleAbove(target.Handle)==pet.Handle && VisibleAbove(pet.Handle)==pet.AnchorHandle,
         "stowed rope stays with target z-order");
       SendMessage(pet.AnchorHandle,0x0201,IntPtr.Zero,new IntPtr(10|(10<<16)));
@@ -62,6 +68,14 @@ class OverlaySmoke {
       Pump(400);
       Check(!pet.IsStowed,"second anchor click restores pet");
       pet.Close();
+      for(int corner=0;corner<4;corner++) {
+        var placed=new PetForm(target.Handle,0,85,corner);
+        Win.GetWindowRect(target.Handle,out r);
+        int x=(corner==1||corner==3)?r.Right-36:r.Left+36;
+        int y=(corner==2||corner==3)?r.Bottom-4:r.Top+4;
+        Check(placed.Left==x-260 && placed.Top==y-52,"corner placement "+corner);
+        placed.Show();Pump(30);placed.Close();
+      }
     }
     Console.WriteLine("Overlay smoke test passed");
   }
