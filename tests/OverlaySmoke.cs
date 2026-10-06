@@ -127,6 +127,13 @@ class OverlaySmoke {
           bitmap.Save(".test-output/amiya_test1-moving.png",ImageFormat.Png);
         }
         Console.WriteLine("Image pet max body tilt: {0:F1} degrees",maxTilt*180/Math.PI);
+        Pump(1500);
+        int startingLeft=target.Left;
+        for(int frame=1;frame<=90;frame++) {
+          target.Left=startingLeft+(int)Math.Round(25*(1-Math.Cos(Math.PI*frame/90)));
+          Pump(16);
+          if(frame==45)CheckRender(imagePet,"amiya_test1-eased");
+        }
         imagePet.Close();
       }
     }
