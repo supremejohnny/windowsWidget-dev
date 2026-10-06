@@ -55,13 +55,13 @@ class PetBodyPhysics {
       } else {
         // Smooth target velocity before differentiating it. Native window move
         // events arrive in uneven pixel steps; raw acceleration is too noisy.
-        double alpha=1-Math.Exp(-dt*14);
+        double alpha=1-Math.Exp(-dt*16);
         double nextX=velocityX+alpha*(dx/dt-velocityX);
         double nextY=velocityY+alpha*(dy/dt-velocityY);
         double rawX=Math.Max(-2200,Math.Min(2200,(nextX-velocityX)/dt));
         double rawY=Math.Max(-2200,Math.Min(2200,(nextY-velocityY)/dt));
         velocityX=nextX;velocityY=nextY;
-        double accelAlpha=1-Math.Exp(-dt*12);
+        double accelAlpha=1-Math.Exp(-dt*14);
         accelerationX+=accelAlpha*(rawX-accelerationX);
         accelerationY+=accelAlpha*(rawY-accelerationY);
       }
@@ -70,7 +70,7 @@ class PetBodyPhysics {
     double rx=CenterX*cosine-CenterY*sine;
     double ry=CenterX*sine+CenterY*cosine;
     double torque=rx*(980-accelerationY)+ry*accelerationX;
-    AngularVelocity+=((torque/MomentPerMass)-3.3*AngularVelocity)*dt;
+    AngularVelocity+=((torque/MomentPerMass)-2.2*AngularVelocity)*dt;
     AngularVelocity=Math.Max(-3,Math.Min(3,AngularVelocity));
     Angle+=AngularVelocity*dt;
     if(Angle<-.65){Angle=-.65;AngularVelocity=Math.Max(0,AngularVelocity);}

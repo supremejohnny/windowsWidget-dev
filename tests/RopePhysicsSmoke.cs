@@ -2,7 +2,7 @@ using System;
 using System.Drawing;
 
 class RopePhysicsSmoke {
-  static void Check(bool ok,string message) { if(!ok)throw new Exception(message); }
+  static void Check(bool ok,string message) { if(!ok){Console.Error.WriteLine(message);throw new Exception(message);} }
   static void Main() {
     var rope=new RopePhysics(120,260,52);
     Check(rope.End.X==260 && rope.End.Y==172,"initial rope position");
@@ -32,7 +32,9 @@ class RopePhysicsSmoke {
         dragged.Step(1f/60,260,52);
         peak=Math.Max(peak,Math.Abs(dragged.End.X-260));
       }
-      Check(peak<32,"controlled swing amplitude for "+length+"px rope");
+      Console.WriteLine("{0}px rope peak swing: {1:F1}px",length,peak);
+      Check(peak>30,"window motion gives visible swing for "+length+"px rope");
+      Check(peak<36,"controlled swing amplitude for "+length+"px rope");
       var lifted=new RopePhysics(length,260,52);
       float highest=52+length;
       for(int frame=0;frame<180;frame++) {

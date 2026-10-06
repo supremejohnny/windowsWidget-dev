@@ -19,7 +19,7 @@ class RopePhysics {
   public void ShiftAnchor(float dx,float dy) {
     // The overlay moves with the target. Rebase free particles into its new coordinates.
     for(int i=1;i<=Segments;i++) {
-      float factor=.48f;
+      float factor=.55f;
       float verticalFactor=dy<0?.22f:.4f;
       point[i].X-=dx*factor;point[i].Y-=dy*verticalFactor;
       previous[i].X-=dx*factor;previous[i].Y-=dy*verticalFactor;
@@ -39,7 +39,7 @@ class RopePhysics {
   }
   void Integrate(float anchorX,float anchorY) {
     for(int i=1;i<=Segments;i++) {
-      float vx=Math.Max(-3,Math.Min(3,(point[i].X-previous[i].X)*.94f));
+      float vx=Math.Max(-3.2f,Math.Min(3.2f,(point[i].X-previous[i].X)*.95f));
       float vy=Math.Max(-1.2f,Math.Min(3,(point[i].Y-previous[i].Y)*.91f));
       previous[i]=point[i];
       point[i].X+=vx;
@@ -55,7 +55,7 @@ class RopePhysics {
         float error=(distance-segmentLength)/distance;
         if(i==0) { point[1].X-=dx*error;point[1].Y-=dy*error; }
         else {
-          float left=i==Segments-1?.8f:.5f;
+          float left=i==Segments-1?.7f:.5f;
           point[i].X+=dx*error*left;point[i].Y+=dy*error*left;
           point[i+1].X-=dx*error*(1-left);point[i+1].Y-=dy*error*(1-left);
         }
