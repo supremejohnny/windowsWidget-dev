@@ -9,7 +9,7 @@ A small Windows overlay pet attached to a selected corner of a window. Move the 
 .\WindowPet.exe
 ```
 
-This uses the C# compiler included with .NET Framework. No SDK or package download is needed on a standard Windows installation. Choose an open window, one of three placeholder pets, one of four corners (upper left, upper right, lower left, lower right), and a fixed rope length: short 55 px, medium 85 px, long 130 px, or extra long 190 px. Press **Attach**. Use **Refresh** to update the window list and **Detach** to remove the pet. Closing the control window exits.
+This uses the C# compiler included with .NET Framework. No SDK or package download is needed on a standard Windows installation. Choose an open window, one of three placeholder pets or the `amiya_test1` image asset, one of four corners (upper left, upper right, lower left, lower right), and a fixed rope length: short 55 px, medium 85 px, long 130 px, or extra long 190 px. Press **Attach**. Use **Refresh** to update the window list and **Detach** to remove the pet. Closing the control window exits.
 Close a running WindowPet before rebuilding its executable.
 
 Run `.\test.ps1` for the rope and window-behavior smoke tests.

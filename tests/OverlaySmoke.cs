@@ -109,6 +109,15 @@ class OverlaySmoke {
         Check(placed.Left==x-260 && placed.Top==y-52,"corner placement "+corner);
         placed.Show();Pump(30);placed.Close();
       }
+      using(var imagePet=new PetForm(target.Handle,3,85,0)) {
+        imagePet.Show();Pump(40);
+        using(var bitmap=new Bitmap(520,420,PixelFormat.Format32bppPArgb)) {
+          using(var g=Graphics.FromImage(bitmap)){g.Clear(Color.Transparent);imagePet.DrawScene(g);}
+          Check(bitmap.GetPixel(260,166).A>0,"amiya_test1 image renders at rope end");
+          bitmap.Save(".test-output/amiya_test1-preview.png",ImageFormat.Png);
+        }
+        imagePet.Close();
+      }
     }
     Console.WriteLine("Overlay smoke test passed");
   }

@@ -4,6 +4,7 @@ using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.IO;
 using System.Windows.Forms;
 
 static class Win {
@@ -55,7 +56,7 @@ class SettingsForm : Form {
     Controls.Add(new Label{Text="Pet",Location=new Point(16,80),AutoSize=true});
     pets.Location=new Point(16,101); pets.Size=new Size(155,25);
     pets.DropDownStyle=ComboBoxStyle.DropDownList;
-    pets.Items.AddRange(new object[]{"Lilac cat","Honey bear","Mint ghost"}); pets.SelectedIndex=0;
+    pets.Items.AddRange(new object[]{"Lilac cat","Honey bear","Mint ghost","amiya_test1"}); pets.SelectedIndex=0;
     Controls.Add(pets);
     Controls.Add(new Label{Text="Position",Location=new Point(190,80),AutoSize=true});
     corners.Location=new Point(190,101);corners.Size=new Size(148,25);
@@ -114,6 +115,7 @@ class PetForm : Form {
   bool stowed;
   PointF[] fromPoints=new PointF[RopePhysics.Segments+1],drawPoints=new PointF[RopePhysics.Segments+1],stowedPoints=new PointF[RopePhysics.Segments+1];
   LayeredSurface surface;
+  Image petImage;
   Win.EventProc locationCallback;
   IntPtr locationHook;
   bool syncingLocation;
@@ -136,8 +138,21 @@ class PetForm : Form {
     FormBorderStyle=FormBorderStyle.None;ShowInTaskbar=false;
     StartPosition=FormStartPosition.Manual;ClientSize=new Size(520,420);
     surface=new LayeredSurface(520,420);
+    if(pet==3) {
+      string file=Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"assets","amiya_test1","character.png");
+      if(!File.Exists(file))throw new FileNotFoundException("Missing pet asset amiya_test1",file);
+      using(var stream=File.OpenRead(file))using(var loaded=Image.FromStream(stream)) {
+        petImage=new Bitmap(224,220,System.Drawing.Imaging.PixelFormat.Format32bppPArgb);
+        using(var graphics=Graphics.FromImage(petImage)) {
+          graphics.Clear(Color.Transparent);
+          graphics.InterpolationMode=InterpolationMode.HighQualityBicubic;
+          graphics.DrawImage(loaded,new Rectangle(0,0,224,220));
+        }
+      }
+    }
     timer.Interval=16;timer.Tick+=Tick;
-    hit=new HitForm(86,81,()=>{rope.Poke(center.X<=AX?7:-7);poke=.42;timer.Interval=16;});
+    hit=new HitForm(pet==3?112:86,pet==3?110:81,
+      ()=>{rope.Poke(center.X<=AX?7:-7);poke=.42;timer.Interval=16;});
     anchorHit=new HitForm(20,20,ToggleStowed);
     // Position and initialize the pet before the first native window is shown.
     UpdateTarget();
@@ -168,6 +183,7 @@ class PetForm : Form {
       if(locationHook!=IntPtr.Zero){Win.UnhookWinEvent(locationHook);locationHook=IntPtr.Zero;}
       timer.Dispose();
       if(surface!=null){surface.Dispose();surface=null;}
+      if(petImage!=null){petImage.Dispose();petImage=null;}
       if(hit!=null)hit.Dispose();
       if(anchorHit!=null)anchorHit.Dispose();
     }
@@ -220,7 +236,8 @@ class PetForm : Form {
     KeepAboveTarget();
   }
   void SyncHit() {
-    hit.SetDesktopLocation(Left+(int)Math.Round(center.X)-43,Top+(int)Math.Round(center.Y)-39);
+    hit.SetDesktopLocation(Left+(int)Math.Round(center.X)-(pet==3?56:43),
+      Top+(int)Math.Round(center.Y)-(pet==3?60:39));
     anchorHit.SetDesktopLocation(Left+AX-10,Top+AY-10);
   }
   void KeepAboveTarget() {
@@ -288,6 +305,11 @@ class PetForm : Form {
     var end=nodes[nodes.Length-1];var before=nodes[nodes.Length-2];
     g.RotateTransform((float)(Math.Atan2(end.X-before.X,end.Y-before.Y)*180/Math.PI*.65));
     float squash=(float)(1-.12*poke);g.ScaleTransform(1/squash,squash);
+    if(petImage!=null) {
+      g.InterpolationMode=InterpolationMode.HighQualityBicubic;
+      g.DrawImage(petImage,new RectangleF(-56,-60,112,110));
+      g.Restore(save);return;
+    }
     using(var b=new SolidBrush(fill)) {
       if(pet==0) {
         g.FillPolygon(b,new[]{new PointF(-38,-26),new PointF(-28,-63),new PointF(-10,-35)});
