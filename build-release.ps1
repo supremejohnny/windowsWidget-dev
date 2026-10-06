@@ -1,6 +1,6 @@
 $ErrorActionPreference = 'Stop'
-$releaseDirectory = Join-Path $PSScriptRoot 'dist\v0.0.1-pre'
-$executable = Join-Path $releaseDirectory 'WindowPet-0.0.1-pre.exe'
+$releaseDirectory = Join-Path $PSScriptRoot 'dist\v0.0.1'
+$executable = Join-Path $releaseDirectory 'WindowPet-0.0.1.exe'
 & (Join-Path $PSScriptRoot 'build.ps1') -OutputPath $executable
 & (Join-Path $PSScriptRoot 'test-portable.ps1') -ExecutablePath $executable
 $hash = (Get-FileHash -LiteralPath $executable -Algorithm SHA256).Hash.ToLowerInvariant()

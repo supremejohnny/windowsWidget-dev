@@ -1,6 +1,6 @@
 # Window Pet
 
-**0.0.1-pre** — Windows preview candidate. The accepted physics baseline is retained. See [architecture](docs/ARCHITECTURE.md), [Windows/macOS compatibility and resource study](docs/COMPATIBILITY.md), and [release notes](docs/RELEASE_0.0.1.md).
+**0.0.1** — Windows binary release. Original source remains local. See [architecture](docs/ARCHITECTURE.md), [Windows/macOS compatibility and resource study](docs/COMPATIBILITY.md), and [release notes](docs/RELEASE_0.0.1.md).
 
 A small Windows overlay pet attached to a selected corner of a window. Move the target window to swing the pet; click the pet to poke it. Click the single fixed anchor to tuck the pet away, leaving an 18 px static rope stub. Click again to bring the pet back.
 
@@ -22,7 +22,7 @@ To build a release candidate without disturbing a running project executable:
 .\build-release.ps1
 ```
 
-The candidate and SHA-256 checksum are written to `dist/v0.0.1-pre/`. This also checks resource loading in a folder with no asset files, under 32-bit and 64-bit CLR hosts when available. It does not upload to GitHub. Full UI testing is currently on Windows 10 22H2 x64; other systems remain unverified.
+The executable and SHA-256 checksum are written to `dist/v0.0.1/`. This also checks resource loading in a folder with no asset files, under 32-bit and 64-bit CLR hosts when available. It does not upload to GitHub. Full UI testing is currently on Windows 10 22H2 x64; other systems remain unverified. The user reports normal resource usage and no stutter after approximately 2.5 hours.
 
 To record an hour of usage from a running instance:
 

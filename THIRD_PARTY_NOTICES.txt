@@ -1,8 +1,8 @@
-Window Pet 0.0.1-pre
+Window Pet 0.0.1
 
 Physics integration and constraints are adapted from:
 https://github.com/code4fukui/physics-rope (revision 0cf6431)
-Original source and license are retained in third_party/physics-rope.
+Upstream source and license are available at the project URL above.
 
 MIT License
 
@@ -27,9 +27,8 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 amiya_test1 is a user-supplied character reference and an image-editor-derived
-interpretation. The character is Amiya from Arknights. No redistribution
-license for this character artwork was supplied. It is not covered by the
-physics-rope MIT license. Confirm its release scope before public publication.
+interpretation. The character is Amiya from Arknights. It is not covered by
+the physics-rope MIT license. Character rights belong to their respective owners.
 
 Lilac cat, Honey bear, and Mint ghost are original placeholder drawings.
-The repository owner has not yet selected a license for original project code.
+Original Window Pet source code is not published with this binary release.

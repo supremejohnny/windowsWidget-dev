@@ -85,6 +85,8 @@ AppKit 有 [ignoresMouseEvents](https://developer.apple.com/documentation/appkit
 
 这只验证安静时短时间指标，不替代用户的一小时结果，也不是持续移动、反复挂载的压力测试。先前 300 帧绘制测试未见 GDI 增长；数学求解器单独测得约 0.141 ms/移动帧，不能将它当作整个进程的 CPU 占用。
 
+后续用户反馈：约 2.5 小时运行后，占用正常、无卡顿。该项是用户实际使用反馈，没有对应的连续采样 CSV；不将其描述为自动化压力测试。
+
 ### 一小时复现方法
 
 ```powershell

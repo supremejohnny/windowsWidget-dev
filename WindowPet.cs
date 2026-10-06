@@ -71,13 +71,13 @@ class SettingsForm : Form {
     attach.Click+=AttachClick; Controls.Add(attach);
     status.Location=new Point(16,240); status.Size=new Size(322,26);
     status.Text="Choose a window, corner, pet, and length."; Controls.Add(status);
-    var about=new LinkLabel{Text="0.0.1-pre / About",AutoSize=true,Location=new Point(224,7)};
+    var about=new LinkLabel{Text="0.0.1 / About",AutoSize=true,Location=new Point(224,7)};
     about.LinkClicked+=(s,e)=>ShowAbout();Controls.Add(about);
     RefreshWindows();
   }
   void ShowAbout() {
     using(var dialog=new Form()) {
-      dialog.Text="Window Pet 0.0.1-pre";dialog.Size=new Size(560,420);
+      dialog.Text="Window Pet 0.0.1";dialog.Size=new Size(560,420);
       dialog.StartPosition=FormStartPosition.CenterParent;
       var notice=new TextBox{Multiline=true,ReadOnly=true,ScrollBars=ScrollBars.Vertical,Dock=DockStyle.Fill,Text=PetAssets.Notices()};
       dialog.Controls.Add(notice);dialog.ShowDialog(this);

@@ -5,4 +5,4 @@ using System.Reflection;
 [assembly: AssemblyProduct("Window Pet")]
 [assembly: AssemblyVersion("0.0.1.0")]
 [assembly: AssemblyFileVersion("0.0.1.0")]
-[assembly: AssemblyInformationalVersion("0.0.1-pre")]
+[assembly: AssemblyInformationalVersion("0.0.1")]
