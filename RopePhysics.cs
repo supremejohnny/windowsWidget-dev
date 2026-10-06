@@ -4,7 +4,9 @@ using System.Drawing;
 // A small position-based rope. The node and distance-constraint approach was
 // evaluated against jongallant/Unity-Verlet-Rope (MIT), then adapted to avoid Unity.
 class RopePhysics {
-  const int Segments=8;
+  public const int Segments=16;
+  const float FixedStep=1f/120;
+  float accumulator;
   readonly PointF[] point=new PointF[Segments+1];
   readonly PointF[] previous=new PointF[Segments+1];
   readonly float segmentLength;
@@ -23,28 +25,36 @@ class RopePhysics {
     }
   }
   public void Poke(float horizontal) {
-    point[Segments].X+=horizontal;
-    point[Segments].Y+=3;
+    previous[Segments].X-=horizontal*.28f;
+    previous[Segments].Y-=.7f;
   }
   public void Step(float dt,float anchorX,float anchorY) {
-    dt=Math.Max(.008f,Math.Min(.033f,dt));
+    accumulator+=Math.Max(0,Math.Min(.05f,dt));
+    while(accumulator>=FixedStep) {
+      Integrate(anchorX,anchorY);
+      accumulator-=FixedStep;
+    }
+    point[0]=previous[0]=new PointF(anchorX,anchorY);
+  }
+  void Integrate(float anchorX,float anchorY) {
     for(int i=1;i<=Segments;i++) {
-      float vx=Math.Max(-10,Math.Min(10,(point[i].X-previous[i].X)*.91f));
-      float vy=Math.Max(-10,Math.Min(10,(point[i].Y-previous[i].Y)*.91f));
+      float vx=Math.Max(-4,Math.Min(4,(point[i].X-previous[i].X)*.973f));
+      float vy=Math.Max(-4,Math.Min(4,(point[i].Y-previous[i].Y)*.973f));
       previous[i]=point[i];
       point[i].X+=vx;
-      point[i].Y+=vy+980*dt*dt*(i==Segments?1.7f:1f);
+      point[i].Y+=vy+980*FixedStep*FixedStep;
     }
-    for(int iteration=0;iteration<12;iteration++) {
+    for(int iteration=0;iteration<48;iteration++) {
       point[0]=new PointF(anchorX,anchorY);
-      for(int i=0;i<Segments;i++) {
+      for(int n=0;n<Segments;n++) {
+        int i=iteration%2==0?n:Segments-1-n;
         float dx=point[i+1].X-point[i].X,dy=point[i+1].Y-point[i].Y;
         float distance=(float)Math.Sqrt(dx*dx+dy*dy);
         if(distance<.0001f)continue;
         float error=(distance-segmentLength)/distance;
         if(i==0) { point[1].X-=dx*error;point[1].Y-=dy*error; }
         else {
-          float left=i==Segments-1?.78f:.5f;
+          float left=i==Segments-1?.8f:.5f;
           point[i].X+=dx*error*left;point[i].Y+=dy*error*left;
           point[i+1].X-=dx*error*(1-left);point[i+1].Y-=dy*error*(1-left);
         }

@@ -3,9 +3,26 @@ using System.Drawing;
 using System.Threading;
 using System.Windows.Forms;
 using System.Runtime.InteropServices;
+using System.Diagnostics;
+using System.IO;
+using System.Drawing.Imaging;
 
 class OverlaySmoke {
   [DllImport("user32.dll")] static extern IntPtr SendMessage(IntPtr h,int msg,IntPtr w,IntPtr l);
+  [DllImport("user32.dll")] static extern uint GetGuiResources(IntPtr process,uint flags);
+  static void CheckRender(PetForm pet,string name) {
+    using(var bitmap=new Bitmap(520,420,PixelFormat.Format32bppPArgb)) {
+      using(var g=Graphics.FromImage(bitmap)){g.Clear(Color.Transparent);pet.DrawScene(g);}
+      Check(bitmap.GetPixel(260,52).A==255,"anchor center remains pinned and opaque");
+      Check(bitmap.GetPixel(0,0).A==0,"canvas remains fully transparent");
+      int partial=0;
+      for(int x=245;x<275;x++)for(int y=43;y<76;y++) {
+        int alpha=bitmap.GetPixel(x,y).A;if(alpha>0&&alpha<255)partial++;
+      }
+      Check(partial>10,"rope and anchor have fractional alpha edges");
+      Directory.CreateDirectory(".test-output");bitmap.Save(".test-output/"+name+".png",ImageFormat.Png);
+    }
+  }
   static void Check(bool value,string message) { if(!value)throw new Exception(message); }
   static IntPtr VisibleAbove(IntPtr h) {
     for(int i=0;i<30;i++) { h=Win.GetWindow(h,3);if(h==IntPtr.Zero||Win.IsWindowVisible(h))return h; }
@@ -40,6 +57,7 @@ class OverlaySmoke {
       Check(pet.HitRegion.IsVisible(43,39),"pet body hit region");
       Check(!pet.HitRegion.IsVisible(0,0),"outside pet hit region");
       target.Location=new Point(540,340);Pump(100);
+      CheckRender(pet,"rope-moving");
       Win.GetWindowRect(target.Handle,out r);
       Check(pet.Left==r.Left+36-260 && pet.Top==r.Top+4-52,"tracks x and y");
       other.Text="Window Pet smoke occluder";other.StartPosition=FormStartPosition.Manual;
@@ -55,9 +73,18 @@ class OverlaySmoke {
       Check(pet.IsStowed,"anchor click stows pet");
       Check(!Win.IsWindowVisible(pet.HitHandle),"pet input hides when stowed");
       Check(Win.IsWindowVisible(pet.AnchorHandle),"anchor stays clickable");
-      Check(pet.StowedPoints[0].X==260 && pet.StowedPoints[8].X==304,
-        "stowed rope has two fixed endpoints");
-      Check(pet.StowedPoints[4].Y>100,"stowed rope forms a U");
+      foreach(var node in pet.StowedPoints)Check(node.X==260 && node.Y>=52 && node.Y<=70,"single anchor with 18px static stub");
+      CheckRender(pet,"rope-stowed");
+      for(int i=0;i<10;i++)pet.RenderFrame();
+      using(var process=Process.GetCurrentProcess()) {
+        uint before=GetGuiResources(process.Handle,0);
+        process.Refresh();long memory=process.PrivateMemorySize64;
+        for(int i=0;i<300;i++)pet.RenderFrame();
+        GC.Collect();GC.WaitForPendingFinalizers();
+        uint after=GetGuiResources(process.Handle,0);process.Refresh();
+        Check(after<=before+2,"repeated rendering must not leak GDI handles");
+        Console.WriteLine("300 frames: GDI handles {0}->{1}; private memory delta {2:F2} MB",before,after,(process.PrivateMemorySize64-memory)/1048576.0);
+      }
       int stepsAtRest=pet.PhysicsSteps;
       target.Location=new Point(560,360);Pump(180);
       Check(pet.PhysicsSteps==stepsAtRest,"stowed mode does not simulate physics even while target moves");

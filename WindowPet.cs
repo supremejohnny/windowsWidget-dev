@@ -104,30 +104,30 @@ class SettingsForm : Form {
 }
 class PetForm : Form {
   const int AX=260,AY=52;
-  IntPtr target; int pet,length,corner,secondX;
+  IntPtr target; int pet,length,corner;
   Timer timer=new Timer();
   RopePhysics rope;
   HitForm hit,anchorHit;
   bool stowed;
-  PointF[] fromPoints,drawPoints=new PointF[9],stowedPoints=new PointF[9];
+  PointF[] fromPoints=new PointF[RopePhysics.Segments+1],drawPoints=new PointF[RopePhysics.Segments+1],stowedPoints=new PointF[RopePhysics.Segments+1];
+  LayeredSurface surface;
+  readonly Stopwatch clock=Stopwatch.StartNew();
   double transition=1;
   int physicsSteps;
   double lastX=double.NaN,lastY=double.NaN,poke;
-  DateTime lastTick=DateTime.UtcNow;
+  double lastTick;
   PointF center;
-  Color key=Color.FromArgb(1,2,3);
   bool first=true;
   public PetForm(IntPtr h,int preset,int ropeLength,int targetCorner) {
     target=h;pet=preset;length=ropeLength;corner=targetCorner;
-    secondX=AX+((corner==1||corner==3)?-44:44);
     for(int i=0;i<stowedPoints.Length;i++) {
       float t=i/(float)(stowedPoints.Length-1);
-      stowedPoints[i]=new PointF(AX+(secondX-AX)*t,AY+58*(float)Math.Sin(Math.PI*t));
+      stowedPoints[i]=new PointF(AX,AY+18*t);
     }
     rope=new RopePhysics(length,AX,AY);
     FormBorderStyle=FormBorderStyle.None;ShowInTaskbar=false;
     StartPosition=FormStartPosition.Manual;ClientSize=new Size(520,420);
-    BackColor=key;TransparencyKey=key;DoubleBuffered=true;
+    surface=new LayeredSurface(520,420);
     timer.Interval=16;timer.Tick+=Tick;
     hit=new HitForm(86,81,()=>{rope.Poke(center.X<=AX?11:-11);poke=.55;timer.Interval=16;});
     anchorHit=new HitForm(20,20,ToggleStowed);
@@ -135,12 +135,20 @@ class PetForm : Form {
     UpdateTarget();
     center=new PointF(AX,AY+length+29);
     Array.Copy(rope.Points,drawPoints,drawPoints.Length);
-    Shown+=(s,e)=>{SyncHit();hit.Show();anchorHit.Show();KeepAboveTarget();timer.Start();};
-    FormClosed+=(s,e)=>{timer.Dispose();hit.Close();hit.Dispose();anchorHit.Close();anchorHit.Dispose();};
+    Shown+=(s,e)=>{RenderFrame();SyncHit();hit.Show();anchorHit.Show();KeepAboveTarget();timer.Start();};
+  }
+  protected override void Dispose(bool disposing) {
+    if(disposing) {
+      timer.Dispose();
+      if(surface!=null){surface.Dispose();surface=null;}
+      if(hit!=null)hit.Dispose();
+      if(anchorHit!=null)anchorHit.Dispose();
+    }
+    base.Dispose(disposing);
   }
   protected override bool ShowWithoutActivation { get { return true; } }
   protected override CreateParams CreateParams {
-    get { var p=base.CreateParams;p.ExStyle|=0x08000020;return p; } // NOACTIVATE | TRANSPARENT
+    get { var p=base.CreateParams;p.ExStyle|=0x08080020;return p; } // NOACTIVATE | LAYERED | TRANSPARENT
   }
   internal IntPtr HitHandle { get { return hit.Handle; } }
   internal Region HitRegion { get { return hit.Region; } }
@@ -149,21 +157,21 @@ class PetForm : Form {
   internal int PhysicsSteps { get { return physicsSteps; } }
   internal PointF[] StowedPoints { get { return stowedPoints; } }
   void ToggleStowed() {
-    fromPoints=(PointF[])drawPoints.Clone();
+    Array.Copy(drawPoints,fromPoints,drawPoints.Length);
     stowed=!stowed;transition=0;
     if(!stowed)rope=new RopePhysics(length,AX,AY);
     if(stowed)hit.Hide();
-    timer.Interval=16;Invalidate();
+    timer.Interval=16;RenderFrame();
   }
   void Tick(object sender,EventArgs e) {
     if(!Win.IsWindow(target)){Close();return;}
     if(Win.IsIconic(target)||!Win.IsWindowVisible(target)) {
       if(Visible)Hide();if(hit.Visible)hit.Hide();if(anchorHit.Visible)anchorHit.Hide();lastX=lastY=double.NaN;
-      lastTick=DateTime.UtcNow;timer.Interval=66;return;
+      lastTick=clock.Elapsed.TotalSeconds;timer.Interval=66;return;
     }
-    var now=DateTime.UtcNow;
-    double dt=Math.Min(.05,Math.Max(.001,(now-lastTick).TotalSeconds));lastTick=now;
-    float oldX=rope.End.X,oldY=rope.End.Y;double oldPoke=poke;
+    double now=clock.Elapsed.TotalSeconds;
+    double dt=Math.Min(.05,Math.Max(.001,now-lastTick));lastTick=now;
+    double oldPoke=poke;bool wasTransitioning=transition<1;
     bool moved=UpdateTarget();
     bool sleeping=stowed||(!moved&&transition==1&&poke==0&&rope.IsSettled(AX,AY));
     if(!sleeping){rope.Step((float)dt,AX,AY);physicsSteps++;}
@@ -174,8 +182,9 @@ class PetForm : Form {
       drawPoints[i]=new PointF(start.X+(end.X-start.X)*blend,start.Y+(end.Y-start.Y)*blend);
     }
     poke=Math.Max(0,poke-3.8*dt);
-    center=new PointF(drawPoints[8].X,drawPoints[8].Y+29);
-    if(moved||transition<1||Math.Abs(oldX-rope.End.X)>.01||Math.Abs(oldY-rope.End.Y)>.01||oldPoke!=poke)Invalidate();
+    drawPoints[0]=new PointF(AX,AY); // Anchor is never part of an interpolated or simulated transform.
+    center=new PointF(drawPoints[drawPoints.Length-1].X,drawPoints[drawPoints.Length-1].Y+29);
+    if(moved||wasTransitioning||!sleeping||oldPoke!=poke)RenderFrame();
     timer.Interval=transition==1&&(stowed||(rope.IsSettled(AX,AY)&&poke==0))?66:16;
     if(!Visible) Show();
     SyncHit();
@@ -223,18 +232,30 @@ class PetForm : Form {
     if(Left!=left||Top!=top||first){SetDesktopLocation(left,top);first=false;moved=true;}
     return moved;
   }
-  protected override void OnPaint(PaintEventArgs e) {
-    base.OnPaint(e);
-    var g=e.Graphics;g.SmoothingMode=SmoothingMode.AntiAlias;
+  internal void RenderFrame() { surface.Present(Handle,Left,Top,DrawScene); }
+  internal void DrawScene(Graphics g) {
+    g.SmoothingMode=SmoothingMode.AntiAlias;
+    g.PixelOffsetMode=PixelOffsetMode.HighQuality;
     Color fill=pet==1?Color.FromArgb(225,177,106):pet==2?Color.FromArgb(145,222,199):Color.FromArgb(213,169,229);
     Color edge=pet==1?Color.FromArgb(110,72,46):pet==2?Color.FromArgb(52,106,98):Color.FromArgb(103,70,119);
     var nodes=drawPoints;
-    using(var pen=new Pen(Color.FromArgb(92,100,117),2))
-      for(int i=0;i<nodes.Length-1;i++)g.DrawLine(pen,nodes[i],nodes[i+1]);
-    using(var b=new SolidBrush(Color.FromArgb(92,100,117))) {
-      g.FillEllipse(b,AX-6,AY-6,12,12);
-      if(stowed)g.FillEllipse(b,secondX-5,AY-5,10,10);
+    using(var path=new GraphicsPath()) {
+      for(int i=0;i<nodes.Length-1;i++) {
+        PointF p0=nodes[Math.Max(0,i-1)],p1=nodes[i],p2=nodes[i+1],p3=nodes[Math.Min(nodes.Length-1,i+2)];
+        path.AddBezier(p1,new PointF(p1.X+(p2.X-p0.X)/6,p1.Y+(p2.Y-p0.Y)/6),
+          new PointF(p2.X-(p3.X-p1.X)/6,p2.Y-(p3.Y-p1.Y)/6),p2);
+      }
+      using(var outline=new Pen(Color.FromArgb(225,64,74,89),2.8f))
+      using(var core=new Pen(Color.FromArgb(245,180,189,202),1.2f)) {
+        outline.StartCap=outline.EndCap=core.StartCap=core.EndCap=LineCap.Round;
+        outline.LineJoin=core.LineJoin=LineJoin.Round;
+        g.DrawPath(outline,path);g.DrawPath(core,path);
+      }
     }
+    using(var shadow=new SolidBrush(Color.FromArgb(45,22,28,38)))g.FillEllipse(shadow,AX-6,AY-5,12,12);
+    using(var ring=new SolidBrush(Color.FromArgb(255,75,86,102)))g.FillEllipse(ring,AX-5.5f,AY-5.5f,11,11);
+    using(var inset=new SolidBrush(Color.FromArgb(255,206,216,227)))g.FillEllipse(inset,AX-3.5f,AY-3.5f,7,7);
+    using(var pin=new SolidBrush(Color.FromArgb(255,89,104,122)))g.FillEllipse(pin,AX-1.5f,AY-1.5f,3,3);
     if(stowed)return;
     var save=g.Save();g.TranslateTransform(center.X,center.Y);
     var end=nodes[nodes.Length-1];var before=nodes[nodes.Length-2];

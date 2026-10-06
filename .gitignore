@@ -3,3 +3,4 @@ WindowPet.pdb
 RopePhysicsSmoke.exe
 OverlaySmoke.exe
 *.log
+.test-output/

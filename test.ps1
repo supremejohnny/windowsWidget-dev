@@ -5,7 +5,7 @@ if (-not (Test-Path $compiler)) { $compiler = 'C:\Windows\Microsoft.NET\Framewor
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 try { & .\RopePhysicsSmoke.exe; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE } }
 finally { Remove-Item -LiteralPath .\RopePhysicsSmoke.exe -ErrorAction SilentlyContinue }
-& $compiler /nologo /target:exe /main:OverlaySmoke /out:OverlaySmoke.exe /reference:System.Drawing.dll /reference:System.Windows.Forms.dll WindowPet.cs RopePhysics.cs tests\OverlaySmoke.cs
+& $compiler /nologo /target:exe /main:OverlaySmoke /out:OverlaySmoke.exe /reference:System.Drawing.dll /reference:System.Windows.Forms.dll WindowPet.cs RopePhysics.cs LayeredSurface.cs tests\OverlaySmoke.cs
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 try { & .\OverlaySmoke.exe; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE } }
 finally { Remove-Item -LiteralPath .\OverlaySmoke.exe -ErrorAction SilentlyContinue }
