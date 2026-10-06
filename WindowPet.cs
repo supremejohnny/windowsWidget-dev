@@ -97,11 +97,14 @@ class SettingsForm : Form {
   protected override void OnFormClosed(FormClosedEventArgs e) { if(overlay!=null) overlay.Close(); base.OnFormClosed(e); }
 }
 class PetForm : Form {
-  const int AX=260,AY=52;
+  const int AX=260,AY=52,SECOND_X=304;
   IntPtr target; int pet,length;
   Timer timer=new Timer();
   RopePhysics rope;
-  HitForm hit;
+  HitForm hit,anchorHit;
+  bool stowed;
+  PointF[] fromPoints,drawPoints=new PointF[9];
+  double transition=1;
   double lastX=double.NaN,lastY=double.NaN,poke;
   DateTime lastTick=DateTime.UtcNow;
   PointF center;
@@ -114,12 +117,14 @@ class PetForm : Form {
     StartPosition=FormStartPosition.Manual;ClientSize=new Size(520,420);
     BackColor=key;TransparencyKey=key;DoubleBuffered=true;
     timer.Interval=16;timer.Tick+=Tick;
-    hit=new HitForm(()=>{rope.Poke(center.X<=AX?20:-20);poke=1;timer.Interval=16;});
+    hit=new HitForm(86,81,()=>{rope.Poke(center.X<=AX?11:-11);poke=.55;timer.Interval=16;});
+    anchorHit=new HitForm(20,20,ToggleStowed);
     // Position and initialize the pet before the first native window is shown.
     UpdateTarget();
     center=new PointF(AX,AY+length+29);
-    Shown+=(s,e)=>{SyncHit();hit.Show();KeepAboveTarget();timer.Start();};
-    FormClosed+=(s,e)=>{timer.Dispose();hit.Close();hit.Dispose();};
+    Array.Copy(rope.Points,drawPoints,drawPoints.Length);
+    Shown+=(s,e)=>{SyncHit();hit.Show();anchorHit.Show();KeepAboveTarget();timer.Start();};
+    FormClosed+=(s,e)=>{timer.Dispose();hit.Close();hit.Dispose();anchorHit.Close();anchorHit.Dispose();};
   }
   protected override bool ShowWithoutActivation { get { return true; } }
   protected override CreateParams CreateParams {
@@ -127,38 +132,65 @@ class PetForm : Form {
   }
   internal IntPtr HitHandle { get { return hit.Handle; } }
   internal Region HitRegion { get { return hit.Region; } }
+  internal IntPtr AnchorHandle { get { return anchorHit.Handle; } }
+  internal bool IsStowed { get { return stowed; } }
+  void ToggleStowed() {
+    fromPoints=(PointF[])drawPoints.Clone();
+    stowed=!stowed;transition=0;
+    rope=stowed?new RopePhysics(length,AX,AY,SECOND_X,AY):new RopePhysics(length,AX,AY);
+    if(stowed)hit.Hide();
+    timer.Interval=16;Invalidate();
+  }
   void Tick(object sender,EventArgs e) {
     if(!Win.IsWindow(target)){Close();return;}
     if(Win.IsIconic(target)||!Win.IsWindowVisible(target)) {
-      if(Visible)Hide();if(hit.Visible)hit.Hide();lastX=lastY=double.NaN;
+      if(Visible)Hide();if(hit.Visible)hit.Hide();if(anchorHit.Visible)anchorHit.Hide();lastX=lastY=double.NaN;
       lastTick=DateTime.UtcNow;timer.Interval=66;return;
     }
     var now=DateTime.UtcNow;
     double dt=Math.Min(.05,Math.Max(.001,(now-lastTick).TotalSeconds));lastTick=now;
     float oldX=rope.End.X,oldY=rope.End.Y;double oldPoke=poke;
     bool moved=UpdateTarget();
-    rope.Step((float)dt,AX,AY);
+    bool sleeping=!moved&&transition==1&&poke==0&&rope.IsSettled(AX,AY);
+    if(!sleeping)rope.Step((float)dt,AX,AY);
+    transition=Math.Min(1,transition+dt*3.5);
+    float blend=(float)(transition*transition*(3-2*transition));
+    for(int i=0;i<drawPoints.Length;i++) {
+      PointF end=rope.Points[i],start=transition<1?fromPoints[i]:end;
+      drawPoints[i]=new PointF(start.X+(end.X-start.X)*blend,start.Y+(end.Y-start.Y)*blend);
+    }
     poke=Math.Max(0,poke-3.8*dt);
-    center=new PointF(rope.End.X,rope.End.Y+29);
-    if(moved||Math.Abs(oldX-rope.End.X)>.01||Math.Abs(oldY-rope.End.Y)>.01||oldPoke!=poke)Invalidate();
-    timer.Interval=rope.IsSettled(AX,AY)&&poke==0?66:16;
+    center=new PointF(drawPoints[8].X,drawPoints[8].Y+29);
+    if(moved||transition<1||Math.Abs(oldX-rope.End.X)>.01||Math.Abs(oldY-rope.End.Y)>.01||oldPoke!=poke)Invalidate();
+    timer.Interval=transition==1&&rope.IsSettled(AX,AY)&&poke==0?66:16;
     if(!Visible) Show();
     SyncHit();
-    if(!hit.Visible)hit.Show();
+    if(!anchorHit.Visible)anchorHit.Show();
+    if(!stowed && transition>.7 && !hit.Visible)hit.Show();
     KeepAboveTarget();
   }
   void SyncHit() {
     hit.SetDesktopLocation(Left+(int)Math.Round(center.X)-43,Top+(int)Math.Round(center.Y)-39);
+    anchorHit.SetDesktopLocation(Left+AX-10,Top+AY-10);
   }
   void KeepAboveTarget() {
     if(!Visible)return;
     // Keep both layers directly above target and below unrelated windows.
-    IntPtr above=Win.GetWindow(target,3);
-    while(above==Handle||above==hit.Handle)above=Win.GetWindow(above,3);
-    if(Win.GetWindow(target,3)!=Handle||Win.GetWindow(Handle,3)!=hit.Handle) {
+    IntPtr above=VisibleAbove(target);
+    while(above==Handle||above==hit.Handle||above==anchorHit.Handle)above=VisibleAbove(above);
+    if(VisibleAbove(target)!=Handle||VisibleAbove(Handle)!=(hit.Visible?hit.Handle:anchorHit.Handle)||
+       (hit.Visible&&VisibleAbove(hit.Handle)!=anchorHit.Handle)) {
       Win.SetWindowPos(Handle,above,0,0,0,0,0x0013);
-      Win.SetWindowPos(hit.Handle,above,0,0,0,0,0x0013);
+      if(hit.Visible)Win.SetWindowPos(hit.Handle,above,0,0,0,0,0x0013);
+      Win.SetWindowPos(anchorHit.Handle,above,0,0,0,0,0x0013);
     }
+  }
+  static IntPtr VisibleAbove(IntPtr h) {
+    for(int i=0;i<128;i++) {
+      h=Win.GetWindow(h,3);
+      if(h==IntPtr.Zero||Win.IsWindowVisible(h))return h;
+    }
+    return IntPtr.Zero;
   }
   bool UpdateTarget() {
     Win.Rect r;if(!Win.GetWindowRect(target,out r))return false;
@@ -166,7 +198,7 @@ class PetForm : Form {
     bool moved=first||x!=lastX||y!=lastY;
     if(!double.IsNaN(lastX)) {
       double dx=x-lastX,dy=y-lastY;
-      if(Math.Abs(dx)>250||Math.Abs(dy)>250) rope=new RopePhysics(length,AX,AY);
+      if(Math.Abs(dx)>250||Math.Abs(dy)>250) {rope=stowed?new RopePhysics(length,AX,AY,SECOND_X,AY):new RopePhysics(length,AX,AY);transition=1;}
       else rope.ShiftAnchor((float)dx,(float)dy);
     }
     lastX=x;lastY=y;
@@ -179,10 +211,14 @@ class PetForm : Form {
     var g=e.Graphics;g.SmoothingMode=SmoothingMode.AntiAlias;
     Color fill=pet==1?Color.FromArgb(225,177,106):pet==2?Color.FromArgb(145,222,199):Color.FromArgb(213,169,229);
     Color edge=pet==1?Color.FromArgb(110,72,46):pet==2?Color.FromArgb(52,106,98):Color.FromArgb(103,70,119);
-    var nodes=rope.Points;
+    var nodes=drawPoints;
     using(var pen=new Pen(Color.FromArgb(92,100,117),2))
       for(int i=0;i<nodes.Length-1;i++)g.DrawLine(pen,nodes[i],nodes[i+1]);
-    using(var b=new SolidBrush(Color.FromArgb(92,100,117)))g.FillEllipse(b,AX-6,AY-6,12,12);
+    using(var b=new SolidBrush(Color.FromArgb(92,100,117))) {
+      g.FillEllipse(b,AX-6,AY-6,12,12);
+      if(stowed)g.FillEllipse(b,SECOND_X-5,AY-5,10,10);
+    }
+    if(stowed)return;
     var save=g.Save();g.TranslateTransform(center.X,center.Y);
     var end=nodes[nodes.Length-1];var before=nodes[nodes.Length-2];
     g.RotateTransform((float)(Math.Atan2(end.X-before.X,end.Y-before.Y)*180/Math.PI*.65));
@@ -201,12 +237,12 @@ class PetForm : Form {
   }
 }
 class HitForm : Form {
-  public HitForm(Action poke) {
+  public HitForm(int width,int height,Action poke) {
     FormBorderStyle=FormBorderStyle.None;ShowInTaskbar=false;
-    StartPosition=FormStartPosition.Manual;ClientSize=new Size(86,81);
+    StartPosition=FormStartPosition.Manual;ClientSize=new Size(width,height);
     BackColor=Color.White;Opacity=.01;
     using(var path=new GraphicsPath()) {
-      path.AddEllipse(new Rectangle(0,0,86,81));
+      path.AddEllipse(new Rectangle(0,0,width,height));
       Region=new Region(path);
     }
     MouseDown+=(s,e)=>{if(e.Button==MouseButtons.Left)poke();};

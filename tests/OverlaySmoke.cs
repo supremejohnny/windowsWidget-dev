@@ -2,8 +2,10 @@ using System;
 using System.Drawing;
 using System.Threading;
 using System.Windows.Forms;
+using System.Runtime.InteropServices;
 
 class OverlaySmoke {
+  [DllImport("user32.dll")] static extern IntPtr SendMessage(IntPtr h,int msg,IntPtr w,IntPtr l);
   static void Check(bool value,string message) { if(!value)throw new Exception(message); }
   static IntPtr VisibleAbove(IntPtr h) {
     for(int i=0;i<30;i++) { h=Win.GetWindow(h,3);if(h==IntPtr.Zero||Win.IsWindowVisible(h))return h; }
@@ -30,6 +32,7 @@ class OverlaySmoke {
       Check(pet.Visible,"visible with target foreground");
       Check(VisibleAbove(target.Handle)==pet.Handle,"visual above target");
       Check(VisibleAbove(pet.Handle)==pet.HitHandle,"hit region above visual");
+      Check(VisibleAbove(pet.HitHandle)==pet.AnchorHandle,"anchor input above pet input");
       var blank=new Point(target.Left+120,target.Top+100);
       Check((Win.GetWindowLong(pet.Handle,-20)&0x20)!=0,"visual layer must be click-through");
       Check(Win.WindowFromPoint(blank)!=pet.Handle && Win.WindowFromPoint(blank)!=pet.HitHandle,
@@ -44,7 +47,20 @@ class OverlaySmoke {
       Check(pet.Visible,"pet remains attached while another window is foreground");
       Check(VisibleAbove(target.Handle)==pet.Handle,"visual above target after occlusion");
       Check(VisibleAbove(pet.Handle)==pet.HitHandle,"hit region above visual after occlusion");
-      Check(VisibleAbove(pet.HitHandle)==other.Handle,"other window remains above pet");
+      Check(VisibleAbove(pet.HitHandle)==pet.AnchorHandle,"anchor above pet hit region");
+      Check(VisibleAbove(pet.AnchorHandle)==other.Handle,"other window remains above pet");
+      SendMessage(pet.AnchorHandle,0x0201,IntPtr.Zero,new IntPtr(10|(10<<16)));
+      SendMessage(pet.AnchorHandle,0x0202,IntPtr.Zero,new IntPtr(10|(10<<16)));
+      Pump(400);
+      Check(pet.IsStowed,"anchor click stows pet");
+      Check(!Win.IsWindowVisible(pet.HitHandle),"pet input hides when stowed");
+      Check(Win.IsWindowVisible(pet.AnchorHandle),"anchor stays clickable");
+      Check(VisibleAbove(target.Handle)==pet.Handle && VisibleAbove(pet.Handle)==pet.AnchorHandle,
+        "stowed rope stays with target z-order");
+      SendMessage(pet.AnchorHandle,0x0201,IntPtr.Zero,new IntPtr(10|(10<<16)));
+      SendMessage(pet.AnchorHandle,0x0202,IntPtr.Zero,new IntPtr(10|(10<<16)));
+      Pump(400);
+      Check(!pet.IsStowed,"second anchor click restores pet");
       pet.Close();
     }
     Console.WriteLine("Overlay smoke test passed");

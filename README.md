@@ -1,6 +1,6 @@
 # Window Pet
 
-A small Windows overlay pet that hangs from the upper-left corner of a selected window. Move the target window to swing the pet; click the pet to poke it. The anchor stays fixed to the target window.
+A small Windows overlay pet that hangs from the upper-left corner of a selected window. Move the target window to swing the pet; click the pet to poke it. Click the anchor to tuck the pet away into a dangling U-shaped rope, and click it again to bring the pet back.
 
 ## Build and run
 
@@ -18,8 +18,8 @@ Run `.\test.ps1` for the rope and window-behavior smoke tests.
 
 - `SettingsForm` lists visible top-level windows by HWND and offers the three settings.
 - `PetForm` is a transparent, mouse-transparent drawing window. Its location is derived directly from the selected window's `GetWindowRect`. The anchor is rendered at a fixed pixel inside this overlay.
-- `HitForm` is a tiny, near-invisible elliptical input window following the pet body. Only this region accepts poke clicks; the rest of the drawing canvas passes mouse input to the application underneath.
-- `RopePhysics` uses eight Verlet-style segments with distance constraints. Moving the anchor in either axis leaves the free nodes with inertia, so the rope bends and the pet catches up. Clicking adds an impulse and squash effect.
+- `HitForm` provides two tiny, near-invisible elliptical input regions: one following the pet body for pokes, and one fixed at the anchor for stowing and restoring. The rest of the drawing canvas passes mouse input to the application underneath.
+- `RopePhysics` uses eight Verlet-style segments with distance constraints. Moving the anchor in either axis leaves the free nodes with inertia, so the rope bends and the pet catches up. The pet end has a heavier constraint weight and a gentler poke impulse. Stowed mode pins both ends and lets the U-shaped rope sway; switching modes interpolates between rope shapes.
 - The 520 × 420 overlay reserves space for maximum rope length and swing. It is positioned and the pet is initialized before the first paint, avoiding the startup flash at the edge.
 - The two pet layers remain visible whenever the target is visible and unminimized. They are kept immediately above the target in the normal window stack, so other windows cover them. Neither layer takes focus. The app polls at 16 ms while moving and 66 ms at rest, and repaints only on changes. No image assets or browser engine are loaded.
 
