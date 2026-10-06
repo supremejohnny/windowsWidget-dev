@@ -9,6 +9,9 @@ using System.Windows.Forms;
 static class Win {
   [StructLayout(LayoutKind.Sequential)] public struct Rect { public int Left,Top,Right,Bottom; }
   public delegate bool EnumProc(IntPtr h,IntPtr p);
+  public delegate void EventProc(IntPtr hook,uint evt,IntPtr h,int obj,int child,uint thread,uint time);
+  [DllImport("user32.dll")] public static extern IntPtr SetWinEventHook(uint first,uint last,IntPtr module,EventProc callback,uint process,uint thread,uint flags);
+  [DllImport("user32.dll")] public static extern bool UnhookWinEvent(IntPtr hook);
   [DllImport("user32.dll")] public static extern bool EnumWindows(EnumProc f,IntPtr p);
   [DllImport("user32.dll")] public static extern bool IsWindow(IntPtr h);
   [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr h);
@@ -111,6 +114,11 @@ class PetForm : Form {
   bool stowed;
   PointF[] fromPoints=new PointF[RopePhysics.Segments+1],drawPoints=new PointF[RopePhysics.Segments+1],stowedPoints=new PointF[RopePhysics.Segments+1];
   LayeredSurface surface;
+  Win.EventProc locationCallback;
+  IntPtr locationHook;
+  bool syncingLocation;
+  bool physicsWake;
+  internal int LocationEvents { get; private set; }
   readonly Stopwatch clock=Stopwatch.StartNew();
   double transition=1;
   int physicsSteps;
@@ -135,10 +143,29 @@ class PetForm : Form {
     UpdateTarget();
     center=new PointF(AX,AY+length+29);
     Array.Copy(rope.Points,drawPoints,drawPoints.Length);
-    Shown+=(s,e)=>{RenderFrame();SyncHit();hit.Show();anchorHit.Show();KeepAboveTarget();timer.Start();};
+    Shown+=(s,e)=>{
+      RenderFrame();SyncHit();hit.Show();anchorHit.Show();KeepAboveTarget();
+      uint process;Win.GetWindowThreadProcessId(target,out process);
+      locationCallback=OnTargetLocation;
+      locationHook=Win.SetWinEventHook(0x800B,0x800B,IntPtr.Zero,locationCallback,process,0,0);
+      timer.Start();
+    };
+  }
+  void OnTargetLocation(IntPtr hook,uint evt,IntPtr h,int obj,int child,uint thread,uint time) {
+    if(h!=target||obj!=0||child!=0||IsDisposed||Disposing||syncingLocation)return;
+    syncingLocation=true;
+    try {
+      LocationEvents++;
+      if(Win.IsIconic(target)||!Win.IsWindowVisible(target))return;
+      if(UpdateTarget()) {
+        SyncHit();
+        if(!stowed){physicsWake=true;timer.Interval=16;}
+      }
+    } finally {syncingLocation=false;}
   }
   protected override void Dispose(bool disposing) {
     if(disposing) {
+      if(locationHook!=IntPtr.Zero){Win.UnhookWinEvent(locationHook);locationHook=IntPtr.Zero;}
       timer.Dispose();
       if(surface!=null){surface.Dispose();surface=null;}
       if(hit!=null)hit.Dispose();
@@ -172,7 +199,7 @@ class PetForm : Form {
     double now=clock.Elapsed.TotalSeconds;
     double dt=Math.Min(.05,Math.Max(.001,now-lastTick));lastTick=now;
     double oldPoke=poke;bool wasTransitioning=transition<1;
-    bool moved=UpdateTarget();
+    bool moved=UpdateTarget()||physicsWake;physicsWake=false;
     bool sleeping=stowed||(!moved&&transition==1&&poke==0&&rope.IsSettled(AX,AY));
     if(!sleeping){rope.Step((float)dt,AX,AY);physicsSteps++;}
     transition=Math.Min(1,transition+dt*3.5);

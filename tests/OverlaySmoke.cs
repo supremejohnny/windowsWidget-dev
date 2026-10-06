@@ -86,7 +86,13 @@ class OverlaySmoke {
         Console.WriteLine("300 frames: GDI handles {0}->{1}; private memory delta {2:F2} MB",before,after,(process.PrivateMemorySize64-memory)/1048576.0);
       }
       int stepsAtRest=pet.PhysicsSteps;
-      target.Location=new Point(560,360);Pump(180);
+      int eventsBefore=pet.LocationEvents;
+      target.Location=new Point(560,360);Pump(30);
+      Check(pet.LocationEvents>eventsBefore,"native target movement event received");
+      Win.GetWindowRect(target.Handle,out r);
+      Win.Rect anchorRect;Win.GetWindowRect(pet.AnchorHandle,out anchorRect);
+      Check(pet.Left+260==r.Left+36 && pet.Top+52==r.Top+4,"stowed anchor follows before idle polling interval");
+      Check(anchorRect.Left+10==r.Left+36 && anchorRect.Top+10==r.Top+4,"anchor hit area follows native movement");
       Check(pet.PhysicsSteps==stepsAtRest,"stowed mode does not simulate physics even while target moves");
       Check(VisibleAbove(target.Handle)==pet.Handle && VisibleAbove(pet.Handle)==pet.AnchorHandle,
         "stowed rope stays with target z-order");

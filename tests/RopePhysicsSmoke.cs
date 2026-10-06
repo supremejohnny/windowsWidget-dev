@@ -25,6 +25,14 @@ class RopePhysicsSmoke {
     rope.Poke(11);rope.Step(1f/60,260,52);
     Check(Math.Abs(rope.End.X-oldX)>1,"poke response");
     foreach(int length in new[]{55,85,130,190}) {
+      var lifted=new RopePhysics(length,260,52);
+      float highest=52+length;
+      for(int frame=0;frame<180;frame++) {
+        if(frame<10)lifted.ShiftAnchor(0,-6);
+        lifted.Step(1f/60,260,52);
+        highest=Math.Min(highest,lifted.End.Y);
+      }
+      Check(highest>52+length-10,"gentle upward window motion must not fold the rope");
       var sixty=new RopePhysics(length,260,52);
       var oneTwenty=new RopePhysics(length,260,52);
       sixty.ShiftAnchor(42,-28);oneTwenty.ShiftAnchor(42,-28);

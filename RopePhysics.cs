@@ -4,7 +4,7 @@ using System.Drawing;
 // A small position-based rope. The node and distance-constraint approach was
 // evaluated against jongallant/Unity-Verlet-Rope (MIT), then adapted to avoid Unity.
 class RopePhysics {
-  public const int Segments=16;
+  public const int Segments=12;
   const float FixedStep=1f/120;
   float accumulator;
   readonly PointF[] point=new PointF[Segments+1];
@@ -20,8 +20,9 @@ class RopePhysics {
     // The overlay moves with the target. Rebase free particles into its new coordinates.
     for(int i=1;i<=Segments;i++) {
       float factor=.82f;
-      point[i].X-=dx*factor;point[i].Y-=dy*factor;
-      previous[i].X-=dx*factor;previous[i].Y-=dy*factor;
+      float verticalFactor=dy<0?.22f:.4f;
+      point[i].X-=dx*factor;point[i].Y-=dy*verticalFactor;
+      previous[i].X-=dx*factor;previous[i].Y-=dy*verticalFactor;
     }
   }
   public void Poke(float horizontal) {
@@ -39,7 +40,7 @@ class RopePhysics {
   void Integrate(float anchorX,float anchorY) {
     for(int i=1;i<=Segments;i++) {
       float vx=Math.Max(-4,Math.Min(4,(point[i].X-previous[i].X)*.973f));
-      float vy=Math.Max(-4,Math.Min(4,(point[i].Y-previous[i].Y)*.973f));
+      float vy=Math.Max(-1.2f,Math.Min(3,(point[i].Y-previous[i].Y)*.91f));
       previous[i]=point[i];
       point[i].X+=vx;
       point[i].Y+=vy+980*FixedStep*FixedStep;
