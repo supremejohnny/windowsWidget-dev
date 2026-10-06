@@ -107,7 +107,8 @@ class SettingsForm : Form {
   protected override void OnFormClosed(FormClosedEventArgs e) { if(overlay!=null) overlay.Close(); base.OnFormClosed(e); }
 }
 class PetForm : Form {
-  const int AX=260,AY=52;
+  internal const int AX=300,AY=52;
+  internal const int CanvasWidth=600,CanvasHeight=440;
   IntPtr target; int pet,length,corner;
   Timer timer=new Timer();
   RopePhysics rope;
@@ -136,27 +137,27 @@ class PetForm : Form {
     }
     rope=new RopePhysics(length,AX,AY);
     FormBorderStyle=FormBorderStyle.None;ShowInTaskbar=false;
-    StartPosition=FormStartPosition.Manual;ClientSize=new Size(520,420);
-    surface=new LayeredSurface(520,420);
+    StartPosition=FormStartPosition.Manual;ClientSize=new Size(CanvasWidth,CanvasHeight);
+    surface=new LayeredSurface(CanvasWidth,CanvasHeight);
     if(pet==3) {
       string file=Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"assets","amiya_test1","character.png");
       if(!File.Exists(file))throw new FileNotFoundException("Missing pet asset amiya_test1",file);
       using(var stream=File.OpenRead(file))using(var loaded=Image.FromStream(stream)) {
-        petImage=new Bitmap(224,220,System.Drawing.Imaging.PixelFormat.Format32bppPArgb);
+        petImage=new Bitmap(320,296,System.Drawing.Imaging.PixelFormat.Format32bppPArgb);
         using(var graphics=Graphics.FromImage(petImage)) {
           graphics.Clear(Color.Transparent);
           graphics.InterpolationMode=InterpolationMode.HighQualityBicubic;
-          graphics.DrawImage(loaded,new Rectangle(0,0,224,220));
+          graphics.DrawImage(loaded,new Rectangle(0,0,320,296));
         }
       }
     }
     timer.Interval=16;timer.Tick+=Tick;
-    hit=new HitForm(pet==3?112:86,pet==3?110:81,
+    hit=new HitForm(pet==3?160:86,pet==3?148:81,
       ()=>{rope.Poke(center.X<=AX?7:-7);poke=.42;timer.Interval=16;});
     anchorHit=new HitForm(20,20,ToggleStowed);
     // Position and initialize the pet before the first native window is shown.
     UpdateTarget();
-    center=new PointF(AX,AY+length+29);
+    center=new PointF(AX,AY+length);
     Array.Copy(rope.Points,drawPoints,drawPoints.Length);
     Shown+=(s,e)=>{
       RenderFrame();SyncHit();hit.Show();anchorHit.Show();KeepAboveTarget();
@@ -226,7 +227,7 @@ class PetForm : Form {
     }
     poke=Math.Max(0,poke-3.8*dt);
     drawPoints[0]=new PointF(AX,AY); // Anchor is never part of an interpolated or simulated transform.
-    center=new PointF(drawPoints[drawPoints.Length-1].X,drawPoints[drawPoints.Length-1].Y+29);
+    center=drawPoints[drawPoints.Length-1];
     if(moved||wasTransitioning||!sleeping||oldPoke!=poke)RenderFrame();
     timer.Interval=transition==1&&(stowed||(rope.IsSettled(AX,AY)&&poke==0))?66:16;
     if(!Visible) Show();
@@ -236,8 +237,8 @@ class PetForm : Form {
     KeepAboveTarget();
   }
   void SyncHit() {
-    hit.SetDesktopLocation(Left+(int)Math.Round(center.X)-(pet==3?56:43),
-      Top+(int)Math.Round(center.Y)-(pet==3?60:39));
+    hit.SetDesktopLocation(Left+(int)Math.Round(center.X)-(pet==3?80:43),
+      Top+(int)Math.Round(center.Y)+(pet==3?0:24));
     anchorHit.SetDesktopLocation(Left+AX-10,Top+AY-10);
   }
   void KeepAboveTarget() {
@@ -302,14 +303,13 @@ class PetForm : Form {
     using(var pin=new SolidBrush(Color.FromArgb(255,89,104,122)))g.FillEllipse(pin,AX-1.5f,AY-1.5f,3,3);
     if(stowed)return;
     var save=g.Save();g.TranslateTransform(center.X,center.Y);
-    var end=nodes[nodes.Length-1];var before=nodes[nodes.Length-2];
-    g.RotateTransform((float)(Math.Atan2(end.X-before.X,end.Y-before.Y)*180/Math.PI*.65));
     float squash=(float)(1-.12*poke);g.ScaleTransform(1/squash,squash);
     if(petImage!=null) {
       g.InterpolationMode=InterpolationMode.HighQualityBicubic;
-      g.DrawImage(petImage,new RectangleF(-56,-60,112,110));
+      g.DrawImage(petImage,new RectangleF(-80,0,160,148));
       g.Restore(save);return;
     }
+    g.TranslateTransform(0,63);
     using(var b=new SolidBrush(fill)) {
       if(pet==0) {
         g.FillPolygon(b,new[]{new PointF(-38,-26),new PointF(-28,-63),new PointF(-10,-35)});

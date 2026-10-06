@@ -11,12 +11,12 @@ class OverlaySmoke {
   [DllImport("user32.dll")] static extern IntPtr SendMessage(IntPtr h,int msg,IntPtr w,IntPtr l);
   [DllImport("user32.dll")] static extern uint GetGuiResources(IntPtr process,uint flags);
   static void CheckRender(PetForm pet,string name) {
-    using(var bitmap=new Bitmap(520,420,PixelFormat.Format32bppPArgb)) {
+    using(var bitmap=new Bitmap(PetForm.CanvasWidth,PetForm.CanvasHeight,PixelFormat.Format32bppPArgb)) {
       using(var g=Graphics.FromImage(bitmap)){g.Clear(Color.Transparent);pet.DrawScene(g);}
-      Check(bitmap.GetPixel(260,52).A==255,"anchor center remains pinned and opaque");
+      Check(bitmap.GetPixel(PetForm.AX,52).A==255,"anchor center remains pinned and opaque");
       Check(bitmap.GetPixel(0,0).A==0,"canvas remains fully transparent");
       int partial=0;
-      for(int x=245;x<275;x++)for(int y=43;y<76;y++) {
+      for(int x=PetForm.AX-15;x<PetForm.AX+15;x++)for(int y=43;y<76;y++) {
         int alpha=bitmap.GetPixel(x,y).A;if(alpha>0&&alpha<255)partial++;
       }
       Check(partial>10,"rope and anchor have fractional alpha edges");
@@ -44,7 +44,7 @@ class OverlaySmoke {
       var pet=new PetForm(target.Handle,0,100,0);
       Check(!pet.TopMost,"pet must stay in normal z-order");
       Win.Rect r;Win.GetWindowRect(target.Handle,out r);
-      Check(pet.Left==r.Left+36-260 && pet.Top==r.Top+4-52,"position before Show");
+      Check(pet.Left==r.Left+36-PetForm.AX && pet.Top==r.Top+4-52,"position before Show");
       pet.Show();Win.SetForegroundWindow(target.Handle);Pump(150);
       Check(pet.Visible,"visible with target foreground");
       Check(VisibleAbove(target.Handle)==pet.Handle,"visual above target");
@@ -59,7 +59,7 @@ class OverlaySmoke {
       target.Location=new Point(540,340);Pump(100);
       CheckRender(pet,"rope-moving");
       Win.GetWindowRect(target.Handle,out r);
-      Check(pet.Left==r.Left+36-260 && pet.Top==r.Top+4-52,"tracks x and y");
+      Check(pet.Left==r.Left+36-PetForm.AX && pet.Top==r.Top+4-52,"tracks x and y");
       other.Text="Window Pet smoke occluder";other.StartPosition=FormStartPosition.Manual;
       other.Location=new Point(600,350);other.Show();Win.SetForegroundWindow(other.Handle);Pump(150);
       Check(pet.Visible,"pet remains attached while another window is foreground");
@@ -73,7 +73,7 @@ class OverlaySmoke {
       Check(pet.IsStowed,"anchor click stows pet");
       Check(!Win.IsWindowVisible(pet.HitHandle),"pet input hides when stowed");
       Check(Win.IsWindowVisible(pet.AnchorHandle),"anchor stays clickable");
-      foreach(var node in pet.StowedPoints)Check(node.X==260 && node.Y>=52 && node.Y<=70,"single anchor with 18px static stub");
+      foreach(var node in pet.StowedPoints)Check(node.X==PetForm.AX && node.Y>=52 && node.Y<=70,"single anchor with 18px static stub");
       CheckRender(pet,"rope-stowed");
       for(int i=0;i<10;i++)pet.RenderFrame();
       using(var process=Process.GetCurrentProcess()) {
@@ -91,7 +91,7 @@ class OverlaySmoke {
       Check(pet.LocationEvents>eventsBefore,"native target movement event received");
       Win.GetWindowRect(target.Handle,out r);
       Win.Rect anchorRect;Win.GetWindowRect(pet.AnchorHandle,out anchorRect);
-      Check(pet.Left+260==r.Left+36 && pet.Top+52==r.Top+4,"stowed anchor follows before idle polling interval");
+      Check(pet.Left+PetForm.AX==r.Left+36 && pet.Top+52==r.Top+4,"stowed anchor follows before idle polling interval");
       Check(anchorRect.Left+10==r.Left+36 && anchorRect.Top+10==r.Top+4,"anchor hit area follows native movement");
       Check(pet.PhysicsSteps==stepsAtRest,"stowed mode does not simulate physics even while target moves");
       Check(VisibleAbove(target.Handle)==pet.Handle && VisibleAbove(pet.Handle)==pet.AnchorHandle,
@@ -106,14 +106,14 @@ class OverlaySmoke {
         Win.GetWindowRect(target.Handle,out r);
         int x=(corner==1||corner==3)?r.Right-36:r.Left+36;
         int y=(corner==2||corner==3)?r.Bottom-4:r.Top+4;
-        Check(placed.Left==x-260 && placed.Top==y-52,"corner placement "+corner);
+        Check(placed.Left==x-PetForm.AX && placed.Top==y-52,"corner placement "+corner);
         placed.Show();Pump(30);placed.Close();
       }
       using(var imagePet=new PetForm(target.Handle,3,85,0)) {
         imagePet.Show();Pump(40);
-        using(var bitmap=new Bitmap(520,420,PixelFormat.Format32bppPArgb)) {
+        using(var bitmap=new Bitmap(PetForm.CanvasWidth,PetForm.CanvasHeight,PixelFormat.Format32bppPArgb)) {
           using(var g=Graphics.FromImage(bitmap)){g.Clear(Color.Transparent);imagePet.DrawScene(g);}
-          Check(bitmap.GetPixel(260,166).A>0,"amiya_test1 image renders at rope end");
+          Check(bitmap.GetPixel(PetForm.AX,52+85+130).A>0,"amiya_test1 enlarged image reaches body bottom");
           bitmap.Save(".test-output/amiya_test1-preview.png",ImageFormat.Png);
         }
         imagePet.Close();
