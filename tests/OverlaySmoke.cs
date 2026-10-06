@@ -116,6 +116,17 @@ class OverlaySmoke {
           Check(bitmap.GetPixel(PetForm.AX,52+85+130).A>0,"amiya_test1 enlarged image reaches body bottom");
           bitmap.Save(".test-output/amiya_test1-preview.png",ImageFormat.Png);
         }
+        double rest=imagePet.BodyRestAngle,maxTilt=0;
+        for(int i=0;i<10;i++) {
+          target.Left+=5;Pump(24);
+          maxTilt=Math.Max(maxTilt,Math.Abs(imagePet.BodyAngle-rest));
+        }
+        Check(maxTilt>.02,"image pet rotates around its top attachment when window moves");
+        using(var bitmap=new Bitmap(PetForm.CanvasWidth,PetForm.CanvasHeight,PixelFormat.Format32bppPArgb)) {
+          using(var g=Graphics.FromImage(bitmap)){g.Clear(Color.Transparent);imagePet.DrawScene(g);}
+          bitmap.Save(".test-output/amiya_test1-moving.png",ImageFormat.Png);
+        }
+        Console.WriteLine("Image pet max body tilt: {0:F1} degrees",maxTilt*180/Math.PI);
         imagePet.Close();
       }
     }

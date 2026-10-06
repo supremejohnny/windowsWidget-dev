@@ -112,6 +112,7 @@ class PetForm : Form {
   IntPtr target; int pet,length,corner;
   Timer timer=new Timer();
   RopePhysics rope;
+  PetBodyPhysics body;
   HitForm hit,anchorHit;
   bool stowed;
   PointF[] fromPoints=new PointF[RopePhysics.Segments+1],drawPoints=new PointF[RopePhysics.Segments+1],stowedPoints=new PointF[RopePhysics.Segments+1];
@@ -151,6 +152,7 @@ class PetForm : Form {
         }
       }
     }
+    body=petImage!=null?PetBodyPhysics.FromImage((Bitmap)petImage,160,148):new PetBodyPhysics(0,63,6500);
     timer.Interval=16;timer.Tick+=Tick;
     hit=new HitForm(pet==3?160:86,pet==3?148:81,
       ()=>{rope.Poke(center.X<=AX?7:-7);poke=.42;timer.Interval=16;});
@@ -200,10 +202,14 @@ class PetForm : Form {
   internal bool IsStowed { get { return stowed; } }
   internal int PhysicsSteps { get { return physicsSteps; } }
   internal PointF[] StowedPoints { get { return stowedPoints; } }
+  internal double BodyAngle { get { return body.Angle; } }
+  internal double BodyRestAngle { get { return body.RestAngle; } }
+  internal PointF BodyCenterOfMass { get { return body.RotatedCenter; } }
   void ToggleStowed() {
     Array.Copy(drawPoints,fromPoints,drawPoints.Length);
     stowed=!stowed;transition=0;
     if(!stowed)rope=new RopePhysics(length,AX,AY);
+    body.ResetMotion();
     if(stowed)hit.Hide();
     timer.Interval=16;RenderFrame();
   }
@@ -211,13 +217,14 @@ class PetForm : Form {
     if(!Win.IsWindow(target)){Close();return;}
     if(Win.IsIconic(target)||!Win.IsWindowVisible(target)) {
       if(Visible)Hide();if(hit.Visible)hit.Hide();if(anchorHit.Visible)anchorHit.Hide();lastX=lastY=double.NaN;
+      body.ResetMotion();
       lastTick=clock.Elapsed.TotalSeconds;timer.Interval=66;return;
     }
     double now=clock.Elapsed.TotalSeconds;
     double dt=Math.Min(.05,Math.Max(.001,now-lastTick));lastTick=now;
     double oldPoke=poke;bool wasTransitioning=transition<1;
     bool moved=UpdateTarget()||physicsWake;physicsWake=false;
-    bool sleeping=stowed||(!moved&&transition==1&&poke==0&&rope.IsSettled(AX,AY));
+    bool sleeping=stowed||(!moved&&transition==1&&poke==0&&rope.IsSettled(AX,AY)&&body.IsSettled);
     if(!sleeping){rope.Step((float)dt,AX,AY);physicsSteps++;}
     transition=Math.Min(1,transition+dt*3.5);
     float blend=(float)(transition*transition*(3-2*transition));
@@ -228,8 +235,9 @@ class PetForm : Form {
     poke=Math.Max(0,poke-3.8*dt);
     drawPoints[0]=new PointF(AX,AY); // Anchor is never part of an interpolated or simulated transform.
     center=drawPoints[drawPoints.Length-1];
+    if(!stowed)body.Update(dt,Left+center.X,Top+center.Y);
     if(moved||wasTransitioning||!sleeping||oldPoke!=poke)RenderFrame();
-    timer.Interval=transition==1&&(stowed||(rope.IsSettled(AX,AY)&&poke==0))?66:16;
+    timer.Interval=transition==1&&(stowed||(rope.IsSettled(AX,AY)&&body.IsSettled&&poke==0))?66:16;
     if(!Visible) Show();
     SyncHit();
     if(!anchorHit.Visible)anchorHit.Show();
@@ -237,8 +245,9 @@ class PetForm : Form {
     KeepAboveTarget();
   }
   void SyncHit() {
-    hit.SetDesktopLocation(Left+(int)Math.Round(center.X)-(pet==3?80:43),
-      Top+(int)Math.Round(center.Y)+(pet==3?0:24));
+    PointF mass=body.RotatedCenter;
+    hit.SetDesktopLocation(Left+(int)Math.Round(center.X+mass.X)-(pet==3?80:43),
+      Top+(int)Math.Round(center.Y+mass.Y)-(pet==3?74:40));
     anchorHit.SetDesktopLocation(Left+AX-10,Top+AY-10);
   }
   void KeepAboveTarget() {
@@ -303,6 +312,7 @@ class PetForm : Form {
     using(var pin=new SolidBrush(Color.FromArgb(255,89,104,122)))g.FillEllipse(pin,AX-1.5f,AY-1.5f,3,3);
     if(stowed)return;
     var save=g.Save();g.TranslateTransform(center.X,center.Y);
+    g.RotateTransform((float)(body.Angle*180/Math.PI));
     float squash=(float)(1-.12*poke);g.ScaleTransform(1/squash,squash);
     if(petImage!=null) {
       g.InterpolationMode=InterpolationMode.HighQualityBicubic;
