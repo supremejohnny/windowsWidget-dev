@@ -22,3 +22,14 @@
 用户反馈约 2.5 小时运行占用正常、无卡顿，已写入公共 README 与 Release 说明。此次构建没有关闭或覆盖原运行进程。
 
 当前 EXE 是托管 .NET 程序，源码不公开不等于二进制不可反编译；本版未增加代码混淆或其他反向工程措施。
+
+## macOS v0.0.2（2026-10-07）
+
+- 发布 URL：https://github.com/supremejohnny/windowWidget/releases/tag/v0.0.2 。
+- 私有源码基于 `2726e80`，先保留用户认可的 6 段基准（`935d742`），再增加到 10 段。源码只推送 `supremejohnny/windowsWidget-dev`；推送前再次核对 origin 与 private=true。
+- 构建命令：`./macos/build-release.sh`。输出 `dist/macos-release/v0.0.2/WindowPet-0.0.2-macos-arm64.zip` 与 `SHA256SUMS.txt`。
+- 平台：Apple Silicon（arm64），macOS 12 及以上。ad-hoc 签名，无 Developer ID / 公证；不支持 Intel Mac。
+- ZIP SHA-256：`4e0beac64a2cfcd554a72b526b69b1372352b4d3ef029652d2797a8369df7981`。
+- 已检查 ZIP 解压后的签名、版本、架构和可执行文件字节与受测构建一致。包内仅有 `.app`、运行资源与许可证，无开发源码或测试。
+- 完整测试：`./macos/test.sh --ui`；最终发布构建再次独立窗口检查。20 组用户认可基准的完整轨迹比较通过；无行为变化的优化检查了 158,400 个节点位置与休眠决定，逐位一致。
+- 公共 Git checkout 只更新 README 与 THIRD_PARTY_NOTICES.txt；Release 上传 ZIP 与 checksum。Windows v0.0.1 的程序、Release 与校验文件保留。

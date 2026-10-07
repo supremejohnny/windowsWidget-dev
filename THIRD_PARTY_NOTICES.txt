@@ -1,4 +1,4 @@
-Window Pet 0.0.1
+Window Pet - third-party notices
 
 Physics integration and constraints are adapted from:
 https://github.com/code4fukui/physics-rope (revision 0cf6431)

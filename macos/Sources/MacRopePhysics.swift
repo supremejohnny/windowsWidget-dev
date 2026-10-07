@@ -13,12 +13,14 @@ func upperCordPoints(_ points: [Point]) -> [Point] {
     return upper
 }
 
-// Six constrained, independently moving segments in anchor-local coordinates.
+// Ten constrained, independently moving segments in anchor-local coordinates.
 // Native geometry remains immediate; filtered frame acceleration drives inertia.
 final class RopePhysics {
-    static let segments = 6
+    static let segments = 10
     static let step = 1.0 / 120
     private static let motionGain = 0.60
+    private static let velocityAlpha = 1-exp(-step/0.080)
+    private static let accelerationAlpha = 1-exp(-step/0.045)
     let length: Double, spacing: Double
     private(set) var points: [Point]
     private let solver: VerletRopeSolver
@@ -28,13 +30,14 @@ final class RopePhysics {
         self.length = length; spacing = length/Double(Self.segments)
         let nodes = (0...Self.segments).map { RopeNode(x, y+Double($0)*length/Double(Self.segments)) }
         nodes[0].fixed = true
-        // Distributed mass/gravity give the cord its own modes; the pendant is
-        // four times one node's mass. Damping limits their resonance, while
-        // retaining independent bending instead of prescribing a curve.
+        // Distributed mass/gravity retain independent bending. Preserve the
+        // approved mass density and damping when increasing resolution.
         for n in nodes { n.damping = 0.955 }
-        nodes[Self.segments].inverseMass = 0.25
-        solver = VerletRopeSolver(nodes, spacing, 500)
-        solver.tolerance = 0.001; solver.previousStep = Self.step; solver.maxSpeed = 240
+        // A ten-segment node has 6/10 of the old node mass; keep pendant
+        // mass unchanged, so its inverse mass becomes 0.25 * 6/10.
+        nodes[Self.segments].inverseMass = 0.25*6/Double(Self.segments)
+        solver = VerletRopeSolver(nodes, spacing, 1000)
+        solver.tolerance = 0.0004; solver.previousStep = Self.step; solver.maxSpeed = 240
         points = nodes.map { Point(x: $0.x, y: $0.y) }
     }
     func shift(_ dx: Double, _ dy: Double) { pendingX += dx; pendingY += dy }
@@ -48,24 +51,27 @@ final class RopePhysics {
         let rawX = pendingX/accumulator, rawY = pendingY/accumulator
         let shiftX = rawX*Self.step, shiftY = rawY*Self.step
         while accumulator+1e-12 >= Self.step {
-            let alpha = 1-exp(-Self.step/0.080)
+            let alpha = Self.velocityAlpha
             let nextX = velocityX+alpha*(rawX-velocityX), nextY = velocityY+alpha*(rawY-velocityY)
             let ax = max(-1600, min(1600, (nextX-velocityX)/Self.step))
             let ay = max(-1600, min(1600, (nextY-velocityY)/Self.step))
             velocityX = nextX; velocityY = nextY
-            let accelAlpha = 1-exp(-Self.step/0.045)
+            let accelAlpha = Self.accelerationAlpha
             accelerationX += accelAlpha*(ax-accelerationX)
             accelerationY += accelAlpha*(ay-accelerationY)
             let root = solver.nodes[0]; root.x = x; root.y = y
+            let forceX = -Self.motionGain*accelerationX, forceY = max(120, 980-Self.motionGain*accelerationY)
             for n in solver.nodes.dropFirst() {
-                n.gravityX = -Self.motionGain*accelerationX
-                n.gravityY = max(120, 980-Self.motionGain*accelerationY)
+                n.gravityX = forceX; n.gravityY = forceY
             }
             solver.update(Self.step)
             accumulator = max(0, accumulator-Self.step)
             pendingX -= shiftX; pendingY -= shiftY
         }
-        points = solver.nodes.map { Point(x: $0.x, y: $0.y) }
+        for i in points.indices {
+            let node = solver.nodes[i]
+            points[i] = Point(x: node.x, y: node.y)
+        }
         points[0] = Point(x: x, y: y)
     }
     var settled: Bool {

@@ -154,3 +154,43 @@ for length in [55.0, 85, 130, 190] {
     check(cadenceError < 0.02, "Mac full-trajectory 60/120/240Hz response")
     print("PASS MAC \(Int(length))pt sharp drag peak \(strongMetrics.end), released bow \(releasedMetrics.bow), poke peak \(pokeMetrics.end), poke bow \(pokeMetrics.bow), rebound signs \(bendSigns.count), length error \(strongMetrics.lengthError), cadence error \(cadenceError)")
 }
+
+// Compare every frame with the user-approved six-segment implementation.
+// Sample equal fractions of arc position so finer segmentation does not change
+// the comparison locations; retain amplitude, timing, shape and body response.
+func cordPoint(_ points: [Point], _ fraction: Double) -> Point {
+    let index = fraction*Double(points.count-1), i = min(points.count-2, Int(index)), blend = index-Double(i)
+    let a = points[i], b = points[i+1]
+    return Point(x: a.x+(b.x-a.x)*blend, y: a.y+(b.y-a.y)*blend)
+}
+for length in [55.0,85,130,190] {
+    for scenario in ["strong", "poke", "micro", "slow", "mixed"] {
+        let approved = ApprovedRopePhysics(length), current = RopePhysics(length)
+        let beforeBody = PetBodyPhysics(-0.662,85.198,9479.428), afterBody = PetBodyPhysics(-0.662,85.198,9479.428)
+        if scenario == "poke" { approved.poke(7); current.poke(7) }
+        var previous = 0.0, elapsed = 0.0, endpointError = 0.0, shapeError = 0.0, rotationError = 0.0
+        for frame in 0..<480 {
+            let dt = scenario == "micro" ? [1.0/60,1.0/60,1.0/30,1.0/120][frame%4] : 1.0/60
+            elapsed += dt
+            let position: Double
+            if scenario == "strong" || scenario == "mixed" { position = Double(min(frame+1,6))*12 }
+            else if scenario == "micro" { position = frame < 240 ? (2*sin(4*Double.pi*elapsed)).rounded() : 0 }
+            else if scenario == "slow" { position = 25*(1-cos(Double.pi*min(elapsed,3)/3)) }
+            else { position = 0 }
+            let dx = position-previous; previous = position
+            let dy = scenario == "mixed" ? -dx/2 : 0
+            approved.shift(dx,dy); current.shift(dx,dy); approved.update(dt); current.update(dt)
+            let a = approved.points.last!, b = current.points.last!
+            endpointError = max(endpointError,hypot(a.x-b.x,a.y-b.y))
+            for sample in 1...20 {
+                let p = cordPoint(approved.points,Double(sample)/20), q = cordPoint(current.points,Double(sample)/20)
+                shapeError = max(shapeError,hypot(p.x-q.x,p.y-q.y))
+            }
+            beforeBody.update(dt,a.x,a.y); afterBody.update(dt,b.x,b.y)
+            rotationError = max(rotationError,abs(beforeBody.angle-afterBody.angle))
+        }
+        let endpointBudget = scenario == "slow" ? 0.02 : scenario == "micro" ? 0.15 : scenario == "strong" ? 0.35 : 0.8
+        check(endpointError < endpointBudget && shapeError < 1.3 && rotationError < 0.02 && current.settled, "preserve approved dynamics: \(Int(length))pt \(scenario)")
+        print("PASS approved baseline \(Int(length))pt \(scenario): endpoint error \(endpointError), shape error \(shapeError), body angle error \(rotationError)")
+    }
+}

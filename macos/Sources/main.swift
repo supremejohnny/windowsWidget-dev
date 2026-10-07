@@ -447,7 +447,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                     let speed = hypot(240.0, 70.0)
                     let p95Budget = speed*2*moving.display.framePeriod+2, peakBudget = speed*3*moving.display.framePeriod+2
                     check(errors.count >= 60 && p95 <= p95Budget && peak <= peakBudget, "moving separate-process target: \(errors.count) samples, p95 \(p95)pt, max \(peak)pt, \(moving.trackingMode)")
-                    check(maximumBow > 2 && maximumBow < 20 && moving.scene.points.count == RopePhysics.segments+1, "real separate-process window retains six-segment cord dynamics: max bow \(maximumBow)pt")
+                    check(maximumBow > 2 && maximumBow < 20 && moving.scene.points.count == RopePhysics.segments+1, "real separate-process window retains ten-segment cord dynamics: max bow \(maximumBow)pt")
                     moving.close()
                 } else { check(false, "moving fixture window appeared") }
             } catch { check(false, "moving fixture launch") }

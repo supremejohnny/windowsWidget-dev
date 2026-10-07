@@ -2,7 +2,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 mkdir -p .test-output/macos
-swiftc -O -whole-module-optimization macos/Sources/Physics.swift macos/Sources/MacRopePhysics.swift macos/Tests/main.swift -o .test-output/macos/PhysicsTests
+swiftc -O -whole-module-optimization macos/Sources/Physics.swift macos/Sources/MacRopePhysics.swift macos/Tests/ApprovedRopePhysics.swift macos/Tests/main.swift -o .test-output/macos/PhysicsTests
 .test-output/macos/PhysicsTests
 if [[ "${1:-}" == "--ui" ]]; then
     ./macos/build.sh
