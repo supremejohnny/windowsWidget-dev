@@ -47,3 +47,6 @@
 - 平台仍为 Apple Silicon、macOS 12+，台前调度接口要求 macOS 13+；ad-hoc 签名，未进行 Developer ID 签名 / 公证。
 - ZIP SHA-256：`e1b8362d4b339666d8de682fbbfb1d9b8a6e53431cf199a5d3497ab6b4ff6779`。打包后重新解压，签名检查通过，可执行文件与发布构建字节一致；包内无源码或测试。
 - 上传源码前确认 origin 为 `supremejohnny/windowsWidget-dev` 且 GitHub `private=true`；公共 checkout 只修改 README，上传 ZIP 和 checksum 作为 Release assets。
+- 已发布正式 Release（draft=false，prerelease=false），published_at=`2026-10-07T09:41:05Z`，已核对 latest 为 v0.0.3。GitHub 资产 digest 与本地一致；从正式 Release 下载 ZIP 与 checksum，重新校验通过。
+- 私有功能提交：`bd549bb`，已推送 master。公共文档提交 / Release 目标：`987d25b266d036c22ce130bffd0beb22c486a11e`；GitHub tree 只有 README 与 THIRD_PARTY_NOTICES.txt。
+- 关闭临时测试应用后打开正式修复版，控制面板实际列表中显示 `Codex — Window #4250（后台 / 其他桌面）`。
