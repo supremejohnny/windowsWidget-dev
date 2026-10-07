@@ -36,6 +36,10 @@ With multiple instances, supply `-ProcessId`. CSV includes private and total wor
 
 Run `.\test.ps1` for the upstream parity, rope, rigid-body, and window-behavior smoke tests. The window test also writes still and moving pet previews to `.test-output`. If Node.js is installed, the unchanged upstream JavaScript is checked against the reference fixture; Node.js is not required to build or run WindowPet.
 
+## macOS prototype
+
+A native Swift/AppKit macOS adaptation is available under [`macos/`](macos/README.md). Build with `./macos/build.sh`, then open `dist/macos/Window Pet.app`. It includes a permission-free demo window, four corners and rope lengths, the existing image pet, poking and stowing. The Mac model uses six independently simulated rope segments, filtered window acceleration, and tuned damping to retain cord bending and rebound while reducing micro-drag amplification; the original 12-segment solver remains as a test reference. This is a locally tested Apple Silicon prototype; see the macOS README for validation and remaining compatibility limits.
+
 ## Implementation
 
 - `SettingsForm` lists visible top-level windows by HWND and offers the three settings.
