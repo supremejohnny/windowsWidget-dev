@@ -61,3 +61,5 @@
 - 微信自定义窗口的 CUA 点击和拖动返回 `AXError.notImplemented`，未使用其他输入工具绕过；微信实际鼠标拖动、Codex 侧边缩略图点击、多屏与长期占用仍待复核。
 - 包仍为 arm64、macOS 12+，台前调度接口 macOS 13+；ad-hoc 签名，无 Developer ID / 公证。ZIP SHA-256：`24c81105a77b79c80fedc05859ad4093ac2d5e7db83513a9e87dfb7922f6ea13`。重新解压后签名、可执行文件字节与平台检查通过，包内无源码或测试文件。
 - 上传源码前确认 origin 为私有 `supremejohnny/windowsWidget-dev`，GitHub private=true；公开 checkout 只修改 README，程序与 checksum 作为 Release assets。
+- 已发布正式 Release（draft=false，prerelease=false），published_at=`2026-10-07T11:39:46Z`，latest 为 v0.0.4；GitHub ZIP 和 checksum digest 与本地相符，从正式 Release 下载后重新校验通过。
+- 私有功能提交：`1108842`，已推送 master。公共文档提交 / Release 目标：`91506d5ed49567613a5f91c66126b7a87b98895d`，GitHub tree 只有 README 和 THIRD_PARTY_NOTICES.txt。正式构建已在本机打开，未挂到临时测试窗口。
