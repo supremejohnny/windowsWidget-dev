@@ -25,6 +25,7 @@ final class FixtureDelegate: NSObject, NSApplicationDelegate {
                 return
             }
             self.window.setFrameOrigin(NSPoint(x: 300+80*sin(t*3), y: 300+35*sin(t*2)))
+            if CommandLine.arguments.contains("--raise") { self.window.orderFront(nil) }
         }
         RunLoop.main.add(timer!, forMode: .common)
         DispatchQueue.main.asyncAfter(deadline: .now()+8) { NSApp.terminate(nil) }

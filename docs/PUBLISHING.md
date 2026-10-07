@@ -50,3 +50,14 @@
 - 已发布正式 Release（draft=false，prerelease=false），published_at=`2026-10-07T09:41:05Z`，已核对 latest 为 v0.0.3。GitHub 资产 digest 与本地一致；从正式 Release 下载 ZIP 与 checksum，重新校验通过。
 - 私有功能提交：`bd549bb`，已推送 master。公共文档提交 / Release 目标：`987d25b266d036c22ce130bffd0beb22c486a11e`；GitHub tree 只有 README 与 THIRD_PARTY_NOTICES.txt。
 - 关闭临时测试应用后打开正式修复版，控制面板实际列表中显示 `Codex — Window #4250（后台 / 其他桌面）`。
+
+## macOS v0.0.4（2026-10-07）
+
+- 发布 URL：https://github.com/supremejohnny/windowWidget/releases/tag/v0.0.4 。
+- 选择器改为每个正常桌面应用一个入口，过滤透明内部表面与系统辅助进程；点击挂载后绑定该应用实际进入前台的窗口，同应用其他窗口可重新挂载。卸下 / 重挂取消等待状态和旧异步回调。
+- 外部挂件在前台目标上采用非激活浮动层级，不再依靠普通层级一次性的相对排序；后台隐藏策略保持。未修改 `MacRopePhysics.swift` 或 `Physics.swift`，10 段动态不变。
+- 完整 UI 回归 `.test-output/macos/application-layer-validation.txt` 通过；独立应用边移动边反复置前，144 次层级检查零失败，挂件排序次数不增加。新应用选择单元检查与原物理测试 `.test-output/macos/application-selection-tests.txt` 通过。
+- 实际 GUI 验证应用入口去重 / 后台系统窗口过滤、同应用主窗口和第二窗口分别绑定正确 ID、失焦隐藏，以及浮动挂件全屏时当前空间和 Window Server 层级。诊断结果在 `.test-output/macos/selection-*.json`；临时测试应用已关闭。
+- 微信自定义窗口的 CUA 点击和拖动返回 `AXError.notImplemented`，未使用其他输入工具绕过；微信实际鼠标拖动、Codex 侧边缩略图点击、多屏与长期占用仍待复核。
+- 包仍为 arm64、macOS 12+，台前调度接口 macOS 13+；ad-hoc 签名，无 Developer ID / 公证。ZIP SHA-256：`24c81105a77b79c80fedc05859ad4093ac2d5e7db83513a9e87dfb7922f6ea13`。重新解压后签名、可执行文件字节与平台检查通过，包内无源码或测试文件。
+- 上传源码前确认 origin 为私有 `supremejohnny/windowsWidget-dev`，GitHub private=true；公开 checkout 只修改 README，程序与 checksum 作为 Release assets。

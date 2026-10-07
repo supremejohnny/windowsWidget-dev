@@ -13,6 +13,7 @@ func windowCandidates(_ list: [[String: Any]]) -> [TargetWindow] {
         guard let id = row[kCGWindowNumber as String] as? UInt32,
               let pid = row[kCGWindowOwnerPID as String] as? Int32,
               let layer = row[kCGWindowLayer as String] as? Int, layer == 0,
+              (row[kCGWindowAlpha as String] as? Double ?? 1) > 0.01,
               let bounds = row[kCGWindowBounds as String] as? NSDictionary,
               let frame = CGRect(dictionaryRepresentation: bounds), frame.width > 80, frame.height > 60 else { return nil }
         let owner = row[kCGWindowOwnerName as String] as? String ?? "App"
@@ -36,6 +37,38 @@ func availableWindows() -> [TargetWindow] {
     }
 }
 func visibleWindows() -> [TargetWindow] { availableWindows().filter { $0.onScreen } }
+
+// Present one application, not every Electron/helper WindowServer surface.
+// Preserve server ordering within each group for front-window resolution.
+func applicationChoices(_ windows: [TargetWindow]) -> [TargetWindow] {
+    var seen = Set<pid_t>()
+    return windows.filter { seen.insert($0.pid).inserted }.sorted {
+        applicationName($0).localizedStandardCompare(applicationName($1)) == .orderedAscending
+    }
+}
+func applicationName(_ target: TargetWindow) -> String {
+    target.label.components(separatedBy: " — ")[0]
+}
+func frontTarget(_ pid: pid_t) -> TargetWindow? {
+    guard NSWorkspace.shared.frontmostApplication?.processIdentifier == pid else { return nil }
+    let rows = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] ?? []
+    let windows = windowCandidates(rows).filter { $0.pid == pid }
+    // If permission already exists, focus disambiguates same-app main windows.
+    // This never prompts and falls back to the frontmost visible server surface.
+    if AccessibilityTracker.authorized {
+        let app = AXUIElementCreateApplication(pid)
+        AXUIElementSetMessagingTimeout(app, 0.03)
+        var value: CFTypeRef?
+        if AXUIElementCopyAttributeValue(app, kAXFocusedWindowAttribute as CFString, &value) == .success,
+           let value = value, CFGetTypeID(value) == AXUIElementGetTypeID(),
+           let rect = AccessibilityTracker.geometry(value as! AXUIElement) {
+            let matches = windows.filter { abs($0.frame.minX-rect.minX) < 2 && abs($0.frame.minY-rect.minY) < 2 &&
+                abs($0.frame.width-rect.width) < 2 && abs($0.frame.height-rect.height) < 2 }
+            if matches.count == 1 { return matches[0] }
+        }
+    }
+    return windows.first
+}
 
 // Read a single window rather than enumerate every application on every frame.
 func targetWindow(_ id: CGWindowID) -> TargetWindow? {

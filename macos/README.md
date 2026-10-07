@@ -11,7 +11,7 @@
 open "dist/macos/Window Pet.app" --args --demo
 ```
 
-需要 Apple Command Line Tools，无额外 Swift 包、浏览器、Electron 或 .NET。控制面板提供四个角色、四个角落和 55 / 85 / 130 / 190 点绳长。点击“演示窗口”重新应用设置；选择真实应用后点击“挂载”。点击角色戳动，点击锚点收起为 18 点绳头，再次点击展开；关闭控制面板退出 喵
+需要 Apple Command Line Tools，无额外 Swift 包、浏览器、Electron 或 .NET。控制面板提供四个角色、四个角落和 55 / 85 / 130 / 190 点绳长。点击“演示窗口”重新应用设置；选择目标应用后点击“挂载”，再切到要挂载的真实窗口完成绑定。点击角色戳动，点击锚点收起为 18 点绳头，再次点击展开；关闭控制面板退出 喵
 
 ## 当前模型
 
@@ -39,9 +39,9 @@ open "dist/macos/Window Pet.app" --args --demo
 
 ## 台前调度与全屏
 
-窗口列表从所有桌面枚举窗口，并标注后台 / 其他桌面；不再因目标不在当前桌面而漏掉它。应用名称采用系统中的应用名称，排除台前调度等后台系统进程。刷新按窗口 ID 保留选择 喵
+底层仍枚举所有桌面的窗口，选择器改为正常桌面应用列表，每个应用只有一个入口，按应用名称排序并按 PID 保留选择。过滤透明内部表面、后台辅助进程与台前调度系统窗口。点击“挂载”后切到该应用想挂的窗口，等待系统切换完成后绑定其当前前台窗口；已有 AX 授权时使用焦点窗口匹配，其他情况使用该应用最前面的可见窗口，无需猜测内部 Window ID。同应用另一个窗口需要重新挂载；“卸下”同时取消待绑定状态，旧异步回调不能重建挂件 喵
 
-挂件使用非激活面板，macOS 13 及以上声明 `canJoinAllApplications`，控制面板声明 `auxiliary`，使挂件可以加入目标应用的台前调度分组与全屏空间。外部窗口只在首次显示或恢复时调整层级，物理 tick 与普通拖动不再重复跨应用置前 喵
+挂件使用非激活面板，macOS 13 及以上声明 `canJoinAllApplications`，控制面板声明 `auxiliary`，使挂件可以加入目标应用的台前调度分组与全屏空间。外部挂件在目标前台期间使用非激活浮动层级，只在首次显示或恢复时排到自身层级前面。目标应用在拖动时重新置前普通窗口也不会盖住挂件，物理 tick 与普通拖动不重复排序；后台仍立即隐藏并释放点击。原生演示子窗口维持普通层级 喵
 
 当前采用前台目标策略：切换应用、切换桌面、最小化或同应用另一窗口取得焦点时，隐藏挂件并穿透输入；原目标再次成为前台窗口后自动恢复。切换时暂停物理积分，恢复时保留绳形与角速度，并重新建立身体支点采样，避免系统切换动画产生冲量。恢复需至少 150 ms 的切换缓冲与稳定几何样本；持续移动的恢复最多等待约 300 ms，正常拖动无额外延迟。未授权辅助功能时，以 Window Server 中该应用最前面的可见窗口作为焦点回退，最多 250 ms 更新一次 喵
 
@@ -80,8 +80,14 @@ open "dist/macos/Window Pet.app" --args --demo
 
 ## 分发边界
 
-macOS v0.0.3 发布为 Apple Silicon（arm64）、macOS 12 及以上的 `.app` ZIP 与 `SHA256SUMS.txt`。使用 `./macos/build-release.sh` 打包，发布地址：https://github.com/supremejohnny/windowWidget/releases/tag/v0.0.3 。当前是 ad-hoc 签名，未使用 Developer ID、公证或 Universal 包。首次打开的说明见公共 README，完整多屏和长期资源验证仍待完成 喵
+macOS v0.0.4 发布为 Apple Silicon（arm64）、macOS 12 及以上的 `.app` ZIP 与 `SHA256SUMS.txt`。使用 `./macos/build-release.sh` 打包，发布地址：https://github.com/supremejohnny/windowWidget/releases/tag/v0.0.4 。当前是 ad-hoc 签名，未使用 Developer ID、公证或 Universal 包。首次打开的说明见公共 README，完整多屏和长期资源验证仍待完成 喵
 
 源码仅推送私有开发仓库 `supremejohnny/windowsWidget-dev`；公开仓库 `dist/public-repo/` 只包含 README 与第三方说明，编译包以 Release asset 上传。遵循 `docs/PUBLISHING.md`；原 PNG 的授权边界不变，未新增再分发授权 喵
 
 上游 `physics-rope` 的 MIT 版权及许可证保留，详见 `third_party/physics-rope/LICENSE` 和 `THIRD_PARTY_NOTICES.txt` 喵
+
+## v0.0.4 选择与层级回归
+
+`Tests/WindowSelection/main.swift` 验证应用去重、窗口顺序、后台应用保留、无编号标签与透明表面过滤；`test.sh` 已包含这些检查。完整 UI 回归在 `.test-output/macos/application-layer-validation.txt`：独立应用连续移动并反复 `orderFront`，144 次层级采样均在挂件下方，挂件的排序次数没有增加。实际 UI 另验证同一应用的主窗口和第二窗口分别绑定对应 ID、失焦隐藏、浮动挂件全屏后的活动空间和实际层级。当前代码未改变 `MacRopePhysics.swift` 或 `Physics.swift`，10 段动态参数与确定性基准阈值不变 喵
+
+已尝试微信实际标题栏拖动，但 CUA 对其自定义窗口返回 `AXError.notImplemented`，未绕过工具直接发送系统输入。微信实际鼠标拖动和 Codex 侧边缩略图点击仍需用户复核；不把独立应用回归描述为微信实测结果 喵

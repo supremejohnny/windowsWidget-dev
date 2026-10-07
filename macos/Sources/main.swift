@@ -127,6 +127,10 @@ final class Pendant {
     init(id: CGWindowID?, demo: NSWindow?, pet: Int, length: Double, corner: Int, eligibilityOverride: (() -> Bool)? = nil) {
         targetPID = id.flatMap { targetWindow($0)?.pid }; self.eligibilityOverride = eligibilityOverride
         targetID = id; self.demo = demo; self.length = length; self.corner = corner
+        // Foreign applications can re-raise their normal window while dragging.
+        // A floating, nonactivating panel stays above without repeated order calls;
+        // the foreground gate still removes it when the target loses eligibility.
+        if demo == nil { canvas.level = .floating }
         rope = RopePhysics(length); scene.pet = pet; body = scene.bodyPhysics()
         scene.points = rope.points; canvas.contentView = scene
         scene.pressed = { [weak self] region in
@@ -286,7 +290,7 @@ final class Pendant {
         if let demo = demo {
             if canvas.parent !== demo { demo.addChildWindow(canvas, ordered: .above) }
         } else if hidden || !hasPresented {
-            canvas.order(.above, relativeTo: Int(targetID!)); orderingOperations += 1
+            canvas.order(.above, relativeTo: 0); orderingOperations += 1
         }
         let wasHidden = hidden
         if hidden { scene.needsDisplay = true }
@@ -340,8 +344,11 @@ final class Pendant {
 final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var settings: NSWindow!, demo: NSWindow?, pendant: Pendant?
     private var diagnosticTimer: Timer?
+    private var activationToken: NSObjectProtocol?
+    private var pendingApplication: TargetWindow?
+    private var pendingTimer: Timer?, attachmentGeneration = 0
     let windowPicker = NSPopUpButton(), petPicker = NSPopUpButton(), cornerPicker = NSPopUpButton(), lengthPicker = NSPopUpButton()
-    let status = NSTextField(wrappingLabelWithString: "选择窗口并挂载，或先打开演示。点击挂件戳动，点击锚点收起。")
+    let status = NSTextField(wrappingLabelWithString: "选择应用并点击挂载，再切到要挂的窗口即可。点击挂件戳动，点击锚点收起。")
     var targets: [TargetWindow] = []
     func applicationDidFinishLaunching(_ notification: Notification) {
         let menu = NSMenu(), item = NSMenuItem(), appMenu = NSMenu()
@@ -349,12 +356,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         item.submenu = appMenu; menu.addItem(item); NSApp.mainMenu = menu
         settings = NSWindow(contentRect: NSRect(x: 120, y: 200, width: 560, height: 320), styleMask: [.titled, .closable, .miniaturizable], backing: .buffered, defer: false)
         if #available(macOS 13.0, *) { settings.collectionBehavior = [.auxiliary, .fullScreenNone] }
-        settings.title = "Window Pet · macOS 窗口切换修复版"; settings.delegate = self; settings.isReleasedWhenClosed = false
+        settings.title = "Window Pet · macOS"; settings.delegate = self; settings.isReleasedWhenClosed = false
         let content = settings.contentView!
         func label(_ title: String, _ y: CGFloat) {
             let field = NSTextField(labelWithString: title); field.frame = NSRect(x: 24, y: y, width: 100, height: 24); content.addSubview(field)
         }
-        label("目标窗口", 260); windowPicker.frame = NSRect(x: 120, y: 256, width: 410, height: 28)
+        label("目标应用", 260); windowPicker.frame = NSRect(x: 120, y: 256, width: 410, height: 28)
         label("挂件", 215); petPicker.frame = NSRect(x: 120, y: 211, width: 185, height: 28)
         petPicker.addItems(withTitles: ["紫色猫咪", "小熊", "薄荷团子", "Amiya 图片"]); petPicker.selectItem(at: 3)
         label("挂载角落", 170); cornerPicker.frame = NSRect(x: 120, y: 166, width: 185, height: 28)
@@ -370,20 +377,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let access = NSButton(title: "辅助功能设置（启用位置事件）", target: self, action: #selector(openAccessibility))
         access.bezelStyle = .inline; access.frame = NSRect(x: 24, y: 8, width: 250, height: 24); content.addSubview(access)
         refresh(); settings.center(); settings.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true)
+        activationToken = NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main) { [weak self] _ in
+            self?.resolvePendingAttachment()
+        }
         if CommandLine.arguments.contains("--demo") { showDemo() }
+        var diagnosticPath: String?
         if let i = CommandLine.arguments.firstIndex(of: "--lifecycle-report"), i+2 < CommandLine.arguments.count,
            let text = try? String(contentsOfFile: CommandLine.arguments[i+1]), let id = UInt32(text.trimmingCharacters(in: .whitespacesAndNewlines)) {
             start(id: id, demo: nil)
             status.stringValue = pendant!.presentationMessage
-            let path = CommandLine.arguments[i+2]
+            diagnosticPath = CommandLine.arguments[i+2]
+        }
+        if let i = CommandLine.arguments.firstIndex(of: "--state-report"), i+1 < CommandLine.arguments.count {
+            diagnosticPath = CommandLine.arguments[i+1]
+        }
+        if let path = diagnosticPath {
             diagnosticTimer = Timer(timeInterval: 0.1, repeats: true) { [weak self] _ in
                 guard let self = self, let p = self.pendant else { return }
-                let state: [String: Any] = ["target": id, "hidden": p.hidden, "visible": p.canvas.isVisible,
+                let state: [String: Any] = ["target": p.targetID ?? 0, "hidden": p.hidden, "visible": p.canvas.isVisible,
                     "ignoresMouse": p.canvas.ignoresMouseEvents, "orders": p.orderingOperations,
                     "foreground": NSWorkspace.shared.frontmostApplication?.processIdentifier ?? -1,
                     "panel": p.canvas.windowNumber, "message": p.presentationMessage,
                     "onActiveSpace": p.canvas.isOnActiveSpace,
                     "panelOnScreen": targetWindow(CGWindowID(p.canvas.windowNumber))?.onScreen ?? false,
+                    "aboveTarget": {
+                        let ids = (CGWindowListCopyWindowInfo(.optionOnScreenOnly, kCGNullWindowID) as? [[String: Any]] ?? []).compactMap { $0[kCGWindowNumber as String] as? Int }
+                        if let panel = ids.firstIndex(of: p.canvas.windowNumber), let target = p.targetID.flatMap({ ids.firstIndex(of: Int($0)) }) { return panel < target }
+                        return false
+                    }(),
                     "points": p.rope.points.map { [$0.x, $0.y] }, "bodyAngle": p.body.angle,
                     "candidates": availableWindows().map { target -> [String: Any] in
                         ["id": target.id, "label": target.label, "onScreen": target.onScreen]
@@ -407,17 +428,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
     @objc func refresh() {
         let index = windowPicker.indexOfSelectedItem
-        let previousID = targets.indices.contains(index) ? targets[index].id : nil
-        targets = availableWindows().filter { $0.pid != getpid() }
-        windowPicker.removeAllItems(); windowPicker.addItems(withTitles: targets.map { $0.label })
+        let previousPID = targets.indices.contains(index) ? targets[index].pid : nil
+        targets = applicationChoices(availableWindows().filter {
+            $0.pid != getpid() && NSRunningApplication(processIdentifier: $0.pid)?.activationPolicy == .regular
+        })
+        windowPicker.removeAllItems(); windowPicker.addItems(withTitles: targets.map { applicationName($0) })
         if targets.isEmpty { windowPicker.addItem(withTitle: "没有可用窗口，请打开演示") }
-        else { windowPicker.selectItem(at: targets.firstIndex(where: { $0.id == previousID }) ?? 0) }
+        else { windowPicker.selectItem(at: targets.firstIndex(where: { $0.pid == previousPID }) ?? 0) }
     }
     @objc func attach() {
         let index = windowPicker.indexOfSelectedItem
-        guard index >= 0 && index < targets.count else { status.stringValue = "请刷新并选择可用窗口。"; return }
-        start(id: targets[index].id, demo: nil)
-        status.stringValue = pendant!.presentationMessage
+        guard index >= 0 && index < targets.count else { status.stringValue = "请刷新并选择可用应用。"; return }
+        detach(); pendingApplication = targets[index]
+        status.stringValue = "请切到 \(applicationName(targets[index])) 要挂载的窗口，切换后自动绑定。点击卸下可取消。"
+        let timer = Timer(timeInterval: 0.1, repeats: true) { [weak self] _ in self?.resolvePendingAttachment() }
+        pendingTimer = timer; RunLoop.main.add(timer, forMode: .common)
+        resolvePendingAttachment()
+    }
+    private func resolvePendingAttachment() {
+        guard let pending = pendingApplication,
+              NSWorkspace.shared.frontmostApplication?.processIdentifier == pending.pid else { return }
+        let generation = attachmentGeneration
+        // Wait for Stage Manager activation to expose the real front window.
+        DispatchQueue.main.asyncAfter(deadline: .now()+0.2) { [weak self] in
+            guard let self = self, self.attachmentGeneration == generation, self.pendingApplication?.pid == pending.pid,
+                  let target = frontTarget(pending.pid) else { return }
+            self.start(id: target.id, demo: nil)
+            self.status.stringValue = self.pendant!.presentationMessage
+        }
     }
     func start(id: CGWindowID?, demo: NSWindow?) {
         detach()
@@ -428,7 +466,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             self.status.stringValue = pendant.presentationMessage
         }
     }
-    @objc func detach() { pendant?.close(); pendant = nil; status.stringValue = "已卸下。" }
+    @objc func detach() {
+        attachmentGeneration += 1; pendingTimer?.invalidate(); pendingTimer = nil
+        pendingApplication = nil; pendant?.close(); pendant = nil; status.stringValue = "已卸下。"
+    }
     @objc func showDemo() {
         if demo == nil {
             demo = NSWindow(contentRect: NSRect(x: 300, y: 300, width: 620, height: 350), styleMask: [.titled, .closable, .resizable, .miniaturizable], backing: .buffered, defer: false)
@@ -483,6 +524,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.1))
         let cgTarget = Pendant(id: CGWindowID(d.windowNumber), demo: nil, pet: 3, length: 85, corner: 1, eligibilityOverride: { true })
         check(cgTarget.canvas.isVisible && cgTarget.lastAnchor != nil, "Window Server target discovery and following")
+        check(cgTarget.canvas.level == .floating && p.canvas.level == .normal, "foreign floating layer and native child layer")
         let orderCount = cgTarget.orderingOperations
         for _ in 0..<30 { cgTarget.tick() }
         check(cgTarget.orderingOperations == orderCount, "physics ticks do not reassert external window ordering")
@@ -504,16 +546,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         if let executable = ProcessInfo.processInfo.environment["WINDOWPET_MOVEMENT_FIXTURE"] {
             let marker = path+".target-id"
             try? FileManager.default.removeItem(atPath: marker)
-            let process = Process(); process.executableURL = URL(fileURLWithPath: executable); process.arguments = [marker]
+            let process = Process(); process.executableURL = URL(fileURLWithPath: executable); process.arguments = [marker, "--raise"]
             do {
                 try process.run()
                 let deadline = Date(timeIntervalSinceNow: 2)
                 while !FileManager.default.fileExists(atPath: marker) && Date() < deadline { RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.01)) }
                 if let text = try? String(contentsOfFile: marker), let id = UInt32(text) {
                     let moving = Pendant(id: id, demo: nil, pet: 3, length: 85, corner: 1, eligibilityOverride: { true })
-                    var errors: [Double] = [], maximumBow = 0.0
+                    var errors: [Double] = [], maximumBow = 0.0, stackingChecks = 0, stackingFailures = 0
+                    let initialOrders = moving.orderingOperations
                     var savedDynamics = false
                     let sampler = Timer(timeInterval: 0.004, repeats: true) { _ in
+                        let ids = (CGWindowListCopyWindowInfo(.optionOnScreenOnly, kCGNullWindowID) as? [[String: Any]] ?? []).compactMap { $0[kCGWindowNumber as String] as? Int }
+                        if let pet = ids.firstIndex(of: moving.canvas.windowNumber), let target = ids.firstIndex(of: Int(id)) {
+                            stackingChecks += 1; if pet >= target { stackingFailures += 1 }
+                        }
                         if let target = targetWindow(id), let pin = moving.lastAnchor {
                             errors.append(hypot(Double(pin.x-(target.frame.maxX-36)), Double(pin.y-(target.frame.minY+4))))
                         }
@@ -530,6 +577,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                     RunLoop.main.add(sampler, forMode: .common)
                     RunLoop.current.run(until: Date(timeIntervalSinceNow: 1.5))
                     sampler.invalidate()
+                    check(stackingChecks >= 50 && stackingFailures == 0 && moving.orderingOperations == initialOrders,
+                          "re-raised moving application stays below pet without repeated ordering: \(stackingChecks) checks, \(stackingFailures) failures")
                     let sorted = errors.sorted(), peak = sorted.last ?? .infinity
                     let p95 = sorted.isEmpty ? Double.infinity : sorted[Int(Double(sorted.count-1)*0.95)]
                     // 240pt/s horizontal + 70pt/s vertical maximum fixture speed.
@@ -631,7 +680,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         NSApp.terminate(nil)
     }
     func windowWillClose(_ notification: Notification) { if notification.object as? NSWindow === settings { NSApp.terminate(nil) } }
-    func applicationWillTerminate(_ notification: Notification) { diagnosticTimer?.invalidate(); pendant?.close() }
+    func applicationWillTerminate(_ notification: Notification) {
+        diagnosticTimer?.invalidate(); pendingTimer?.invalidate(); pendant?.close()
+        if let token = activationToken { NSWorkspace.shared.notificationCenter.removeObserver(token) }
+    }
 }
 let app = NSApplication.shared
 let delegate = AppDelegate()

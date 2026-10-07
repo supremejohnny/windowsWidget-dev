@@ -4,6 +4,8 @@ cd "$(dirname "$0")/.."
 mkdir -p .test-output/macos
 swiftc -O -whole-module-optimization macos/Sources/Physics.swift macos/Sources/MacRopePhysics.swift macos/Sources/Presentation.swift macos/Tests/ApprovedRopePhysics.swift macos/Tests/main.swift -o .test-output/macos/PhysicsTests
 .test-output/macos/PhysicsTests
+swiftc -O -whole-module-optimization macos/Sources/WindowTracking.swift macos/Tests/WindowSelection/main.swift -framework AppKit -framework ApplicationServices -framework CoreVideo -o .test-output/macos/WindowSelectionTests
+.test-output/macos/WindowSelectionTests
 if [[ "${1:-}" == "--ui" ]]; then
     ./macos/build.sh
     swiftc -O -target "$(uname -m)-apple-macos12.0" macos/Tests/MovingWindow.swift -framework AppKit -o .test-output/macos/MovingWindow
