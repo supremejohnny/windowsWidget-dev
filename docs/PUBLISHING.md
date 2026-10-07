@@ -33,3 +33,6 @@
 - 已检查 ZIP 解压后的签名、版本、架构和可执行文件字节与受测构建一致。包内仅有 `.app`、运行资源与许可证，无开发源码或测试。
 - 完整测试：`./macos/test.sh --ui`；最终发布构建再次独立窗口检查。20 组用户认可基准的完整轨迹比较通过；无行为变化的优化检查了 158,400 个节点位置与休眠决定，逐位一致。
 - 公共 Git checkout 只更新 README 与 THIRD_PARTY_NOTICES.txt；Release 上传 ZIP 与 checksum。Windows v0.0.1 的程序、Release 与校验文件保留。
+- 已发布为正式 Release（draft=false），GitHub published_at：`2026-10-07T08:59:27Z`；已确认是公开仓库 latest Release。
+- GitHub ZIP 与 checksum 资产 digest 均与本地 SHA-256 一致；另从正式 Release 下载 ZIP 和 checksum，重新校验通过。
+- 私有功能提交：`74928ec211feac589095d15b03949df4e0415cea`，已推送 master。公开文档提交：`2a69dbb56daf0fe32c5e816deea367c2d59757ee`；公开 tag 仅引用这份文档历史，不含开发源码。
