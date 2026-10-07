@@ -1,4 +1,5 @@
 import Foundation
+import CoreGraphics
 
 func check(_ condition: Bool, _ message: String) {
     if !condition { fputs("FAIL: \(message)\n", stderr); exit(1) }
@@ -194,3 +195,29 @@ for length in [55.0,85,130,190] {
         print("PASS approved baseline \(Int(length))pt \(scenario): endpoint error \(endpointError), shape error \(shapeError), body angle error \(rotationError)")
     }
 }
+
+
+let presentationFrame = CGRect(x: 100, y: 100, width: 600, height: 400)
+var presentationGate = PresentationGate()
+check(presentationGate.permits(presentationFrame, eligible: true, now: 0), "initial foreground target visible")
+check(!presentationGate.permits(presentationFrame, eligible: false, now: 1), "background target hidden immediately")
+check(!presentationGate.permits(presentationFrame, eligible: true, now: 1.01), "activation has grace")
+check(!presentationGate.permits(nil, eligible: true, now: 1.2), "missing target stays bound but hidden")
+check(!presentationGate.permits(presentationFrame, eligible: true, now: 1.21), "new visible geometry waits for stable sample")
+check(presentationGate.permits(presentationFrame, eligible: true, now: 1.25), "foreground stable target resumes")
+check(presentationGate.permits(CGRect(x: 140, y: 100, width: 600, height: 400), eligible: true, now: 1.26), "normal dragging remains immediate")
+presentationGate.suspend(2)
+for step in 0..<20 {
+    let now = 2+Double(step)/100
+    check(!presentationGate.permits(CGRect(x: Double(step), y: 100, width: 600, height: 400), eligible: true, now: now), "switch animation is suspended")
+}
+check(presentationGate.permits(presentationFrame, eligible: true, now: 2.31), "resume wait is bounded if dragging starts during activation")
+let rebasedBody = PetBodyPhysics(0,85,9500)
+rebasedBody.angle = 0.1; rebasedBody.velocity = 0.2
+rebasedBody.rebasePivot(1000,1000)
+check(rebasedBody.angle == 0.1 && rebasedBody.velocity == 0.2, "rebase preserves angular state")
+let equivalentBody = PetBodyPhysics(0,85,9500)
+equivalentBody.angle = 0.1; equivalentBody.velocity = 0.2
+equivalentBody.update(1.0/60,0,0); rebasedBody.update(1.0/60,1000,1000)
+check(abs(equivalentBody.angle-rebasedBody.angle) < 1e-12, "resume translation creates no body impulse")
+print("PASS presentation focus, missing windows, stable resume, immediate dragging and pivot rebasing")

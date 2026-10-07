@@ -141,6 +141,11 @@ final class PetBodyPhysics {
         centerX = x; centerY = y; self.moment = moment; angle = atan2(x, y)
     }
     func reset() { angle = restAngle; velocity = 0; sampled = false; vx = 0; vy = 0; ax = 0; ay = 0 }
+    // Stage/Space changes translate the pivot without applying an artificial
+    // impulse. Preserve the pendant angle and angular velocity while paused.
+    func rebasePivot(_ x: Double, _ y: Double) {
+        sampled = true; priorX = x; priorY = y; vx = 0; vy = 0; ax = 0; ay = 0
+    }
     func update(_ delta: Double, _ x: Double, _ y: Double) {
         let dt = max(0.001, min(0.05, delta))
         if !sampled { priorX = x; priorY = y; sampled = true }

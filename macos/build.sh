@@ -3,7 +3,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 app="$PWD/dist/macos/Window Pet.app"
 mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
-swiftc -O -whole-module-optimization -target "$(uname -m)-apple-macos12.0" macos/Sources/Physics.swift macos/Sources/MacRopePhysics.swift macos/Sources/WindowTracking.swift macos/Sources/main.swift -framework AppKit -framework CoreGraphics -framework CoreVideo -framework ApplicationServices -o "$app/Contents/MacOS/WindowPet"
+swiftc -O -whole-module-optimization -target "$(uname -m)-apple-macos12.0" macos/Sources/Physics.swift macos/Sources/MacRopePhysics.swift macos/Sources/Presentation.swift macos/Sources/WindowTracking.swift macos/Sources/main.swift -framework AppKit -framework CoreGraphics -framework CoreVideo -framework ApplicationServices -o "$app/Contents/MacOS/WindowPet"
 cp assets/amiya_test1/character.png "$app/Contents/Resources/character.png"
 cp THIRD_PARTY_NOTICES.txt "$app/Contents/Resources/THIRD_PARTY_NOTICES.txt"
 cp third_party/physics-rope/LICENSE "$app/Contents/Resources/physics-rope-LICENSE.txt"
@@ -15,8 +15,8 @@ cat > "$app/Contents/Info.plist" <<'PLIST'
 <key>CFBundleIdentifier</key><string>com.supremejohnny.windowpet.macos.prototype</string>
 <key>CFBundleName</key><string>Window Pet</string>
 <key>CFBundlePackageType</key><string>APPL</string>
-<key>CFBundleShortVersionString</key><string>0.0.2</string>
-<key>CFBundleVersion</key><string>2</string>
+<key>CFBundleShortVersionString</key><string>0.0.3</string>
+<key>CFBundleVersion</key><string>3</string>
 <key>LSMinimumSystemVersion</key><string>12.0</string>
 <key>NSHighResolutionCapable</key><true/>
 </dict></plist>
